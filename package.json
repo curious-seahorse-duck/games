@@ -1,0 +1,20 @@
+{
+  "name": "phaser-four-starfish",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A fish-catching Phaser 4 game built with TypeScript and Vite.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "phaser": "4.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.21",
+    "typescript": "~5.7.2",
+    "vite": "^6.3.1"
+  }
+}
