@@ -105,6 +105,7 @@ const securityHeaders = {
 };
 
 export default defineConfig({
+  base: '/fish-rain/',
   plugins: [sharedBanApi()],
   server: {
     port: 5173,
