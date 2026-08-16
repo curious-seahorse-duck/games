@@ -1,6 +1,6 @@
 # Fish Rain - Phaser 4 + TypeScript
 
-A browser game built with Phaser 4 and Vite. Catch raining fish in your basket, then feed them to a hungry bear before its hunger bar reaches zero. Choose from sixteen animated harbors, collect silver dimes, bank points, and buy new fish and baskets from the Points Shop.
+A browser game built with Phaser 4 and Vite. Catch raining fish in your basket, then feed them to a hungry bear before its hunger bar reaches zero. Choose from animated harbors, collect silver nickels, bank points, and buy new fish and baskets from the Points Shop.
 
 ## Levels
 
@@ -27,8 +27,8 @@ Each harbor has its own colors, animated rain, water, themed decoration, music, 
 
 - Caught fish are stored in your basket and do not award points immediately.
 - Press `F` to feed one stored fish to the bear and add 1 unbanked run point.
-- A collectible silver dime appears during each level and adds 5 unbanked run points.
-- Dimes do not count as misses if they fall past the basket.
+- A collectible silver nickel appears during each level and adds 5 unbanked run points.
+- Nickels do not count as misses if they fall past the basket.
 - Run points are only added to your permanent total after clearing the level.
 - Restarting, returning to the menu, or losing the level discards unbanked points.
 - Open the **Points Shop** from the level menu or press `P` to buy fish and baskets.
@@ -56,7 +56,7 @@ The current game has no network backend, so chat uses the browser's `BroadcastCh
 
 ## Accounts and profiles
 
-The game asks you to **CREATE ACCOUNT** or **SIGN IN** when it opens. You may continue as a guest for the main levels, but Challenges and Stats require a signed-in account. Passwords are hashed before being stored in this browser.
+The game asks you to **CREATE ACCOUNT** or **SIGN IN** when it opens. You may continue as a guest for the main levels and Challenges; Stats still requires a signed-in account. Passwords are hashed before being stored in this browser. When the hosted server worker is used, admin bans are shared with every browser using that deployment; the current worker keeps the ban list in memory, so a durable database/KV store is needed for bans to survive a server restart.
 
 The **PROFILES** menu shows locally discovered accounts, including their stats, equipped fish/basket/net/bear/ship skins, following list, friends, and follower count. You can follow an account or send a friend request. This offline build discovers profiles only from the same browser/origin through local storage and open tabs; real multi-device accounts, friend requests, and following require a server backend.
 
@@ -133,7 +133,7 @@ Settings also includes **MOBILE CONTROLS**. Turn it on to show large touch butto
 
 ## Audio
 
-Fish catches, misses, bear feeding, and dime pickups have their own sound effects. The main menu has its own looping music, and each level has a generated music pattern matched to its name and mood, from gentle bay melodies to pirate, storm, volcano, aurora, and cosmic themes. Audio is synthesized in the browser, so there are no sound assets to download or configure.
+Fish catches, misses, bear feeding, and nickel pickups have their own sound effects. The main menu has its own looping music, and each level has a generated music pattern matched to its name and mood, from gentle bay melodies to pirate, storm, volcano, aurora, and cosmic themes. Audio is synthesized in the browser, so there are no sound assets to download or configure.
 
 Settings includes **Phonk Mode**. Turn it on while Sound & Music is enabled to convert the menu and every level soundtrack into a darker, bass-heavy phonk arrangement.
 
@@ -159,13 +159,12 @@ that host to send the same headers; static files do not carry response headers w
 
 ## Security boundary
 
-This is an offline, client-only game. Scores, unlocks, and achievements are saved in the
-player's browser, so anyone who controls the browser can still edit the save or modify
-the shipped JavaScript. The game validates and bounds restored save data to prevent
-malformed values from breaking the game, but it cannot provide cheat-proof leaderboards
-or trusted rewards without a server-authoritative backend. For competitive scores, send
-validated gameplay events to a server and calculate/store the score there rather than
-trusting a client-submitted total.
+Scores, unlocks, and achievements are saved in the player's browser, so anyone who
+controls the browser can still edit the save or modify the shipped JavaScript. The
+hosted server worker provides shared account-ban checks, but its in-memory ban list is
+not a replacement for durable account storage or server-authoritative authentication.
+For competitive scores and permanent moderation, use a database/KV-backed backend and
+calculate/store validated events server-side.
 
 Vite watches the `src` directory, so edits appear in the browser automatically.
 

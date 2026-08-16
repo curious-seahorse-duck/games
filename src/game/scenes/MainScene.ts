@@ -11,9 +11,11 @@ const BASKET_HITBOX_OFFSET_Y = -25;
 const SHIP_HITBOX_WIDTH = 190;
 const SHIP_HITBOX_HEIGHT = 48;
 const SHIP_HITBOX_OFFSET_Y = -30;
-const DIME_HITBOX_SIZE = 25;
+const NICKEL_HITBOX_SIZE = 25;
 const FISH_CATCH_POINTS = 1;
-const DIME_POINTS = 5;
+const NICKEL_POINTS = 5;
+const RARE_FISH_CATCH_CHANCE = 0.05;
+const BAN_DURATION_MS = 24 * 60 * 60 * 1000;
 const BEAR_HUNGER_DRAIN_PER_SECOND = 2;
 const PENALTY_FREE_LEVEL_COUNT = 4;
 // Browser storage is player-controlled. Keep restored values bounded so a
@@ -23,7 +25,7 @@ const MAX_STORED_COUNTER = 10_000_000;
 const MAX_CUSTOM_CHALLENGE_NAME_LENGTH = 64;
 const MAX_ACCOUNTS_PER_BROWSER = 10;
 
-type GameState = 'menu' | 'levelSelect' | 'challenges' | 'challengeCreate' | 'settings' | 'skins' | 'bearShop' | 'achievements' | 'shop' | 'chat' | 'live' | 'account' | 'stats' | 'profiles' | 'feed' | 'intro' | 'playing' | 'hungry' | 'ended';
+type GameState = 'menu' | 'levelSelect' | 'challenges' | 'challengeCreate' | 'settings' | 'skins' | 'codes' | 'admin' | 'bearShop' | 'achievements' | 'shop' | 'chat' | 'live' | 'account' | 'stats' | 'profiles' | 'feed' | 'intro' | 'playing' | 'hungry' | 'ended';
 type FeedReturnState = 'menu' | 'playing' | 'hungry';
 type AccountReturnState = 'menu' | 'challenges' | 'stats' | 'profiles';
 type ProfilePacket =
@@ -133,6 +135,7 @@ type FallingFish = {
   speed: number;
   drift: number;
   phase: number;
+  rareStyleIndex?: number;
 };
 
 type FallingDime = {
@@ -210,6 +213,28 @@ type LiveChatMessage = {
 };
 
 type LivePacket = LivePlayerSnapshot | LiveChatMessage;
+
+type RewardCode = {
+  description: string;
+  reward: 'points' | 'fish' | 'baskets' | 'nets' | 'ships' | 'all' | 'music';
+  amount?: number;
+};
+
+const ADMIN_CODE = '446908865';
+const REWARD_CODES: Record<string, RewardCode> = {
+  TIDALWAVE: { description: 'Shiawase VIP menu music', reward: 'music' },
+  'TIDAL-7K2P': { description: '250 points', reward: 'points', amount: 250 },
+  'REEF-4M8Q': { description: '500 points', reward: 'points', amount: 500 },
+  'OCEAN-9X3L': { description: '1,000 points', reward: 'points', amount: 1000 },
+  'FISH-50-VAULT': { description: '50 bonus fish skins', reward: 'fish' },
+  'BASKET-50-VAULT': { description: '50 bonus baskets', reward: 'baskets' },
+  'NET-50-VAULT': { description: '50 bonus nets', reward: 'nets' },
+  'SHIP-50-VAULT': { description: '50 bonus ships', reward: 'ships' },
+  'DEEPSEA-ALL-50': { description: 'All 50-item gear vaults', reward: 'all' },
+  'SUNSET-2P9R': { description: '750 points', reward: 'points', amount: 750 },
+  'MOON-8N4C': { description: '1,500 points', reward: 'points', amount: 1500 },
+  'CORAL-6J7V': { description: '300 points', reward: 'points', amount: 300 },
+};
 
 const LEVELS: LevelConfig[] = [
   {
@@ -670,7 +695,7 @@ const CHALLENGE_LEVELS: LevelConfig[] = [
   {
     id: 'dime-drop',
     creator: 'FISH RAIN TEAM',
-    name: 'DIME DROP',
+    name: 'NICKEL DROP',
     difficulty: 'CHALLENGE · HARD',
     target: 20,
     spawnDelay: 475,
@@ -1183,10 +1208,89 @@ const SHIP_STYLES: ShipStyleConfig[] = [
   { name: 'STAR GALLEON', unlockPoints: 1100, hullColor: 0x4a277f, deckColor: 0xa85bce, sailColor: 0xf0d5ff, accentColor: 0xffd36e },
 ];
 
+// The bonus vaults are generated from a compact palette so they remain real,
+// selectable styles without bloating the source with 150 copies of drawing data.
+const BONUS_THEMES: ThemeName[] = ['coral', 'sunset', 'moon', 'frost', 'storm', 'aurora', 'cosmic', 'kelp', 'crystal', 'finale'];
+const bonusColor = (index: number, channel: number): number => {
+  const color = Phaser.Display.Color.HSLToColor(((index * 37 + channel * 71) % 360) / 360, 0.72, 0.54);
+  return color.color;
+};
+const BONUS_FISH_START_INDEX = FISH_STYLES.length;
+const BONUS_GEAR_NAMES = {
+  fish: ['Meme Minnow', 'Pixel Piranha', 'Plumber Powerfish', 'Space Trekker', 'Block Builder', 'Mystery Guppy', 'Stranger Tide', 'Dungeon Crawler', 'Battle Royale Bass', 'Retro Arcade Koi'],
+  baskets: ['Rainbow Meme Basket', 'Pixel Loot Crate', 'Plumber Pipe Basket', 'Space Ranger Cargo', 'Block Builder Chest', 'Mystery Machine Bin', 'Stranger Things Tote', 'Dungeon Boss Hoard', 'Battle Royale Drop', 'Retro Arcade Bin'],
+  nets: ['Rickroll Rig', 'Pixel Web', 'Plumber Warp Net', 'Space Trek Beam', 'Block Builder Mesh', 'Mystery Scooper', 'Stranger Net', 'Dungeon Web', 'Battle Royale Snare', 'Retro Arcade Grid'],
+  ships: ['Meme Machine', 'Pixel Cruiser', 'Plumber Paddleboat', 'Space Trek Shuttle', 'Block Builder Barge', 'Mystery Van Vessel', 'Stranger Tide', 'Dungeon Boss Galleon', 'Battle Royale Dropship', 'Retro Arcade Racer'],
+} as const;
+const bonusGearName = (kind: keyof typeof BONUS_GEAR_NAMES, index: number): string =>
+  `${BONUS_GEAR_NAMES[kind][index % BONUS_GEAR_NAMES[kind].length]} ${Math.floor(index / BONUS_GEAR_NAMES[kind].length) + 1}`;
+
+LEVELS.push(...Array.from({ length: 50 }, (_, index) => {
+  const source = LEVELS[index % 16];
+  const tier = index + 1;
+  return {
+    ...source,
+    name: `BONUS HARBOR ${String(tier).padStart(2, '0')}`,
+    difficulty: `BONUS · ${tier % 2 === 0 ? 'HARD' : 'EXTREME'}`,
+    target: source.target + 6 + Math.floor(index / 5),
+    spawnDelay: Math.max(80, source.spawnDelay - 18),
+    minFallSpeed: source.minFallSpeed + 20,
+    maxFallSpeed: source.maxFallSpeed + 30,
+    theme: BONUS_THEMES[index % BONUS_THEMES.length],
+  };
+}));
+
+CHALLENGE_LEVELS.push(...Array.from({ length: 50 }, (_, index) => {
+  const source = CHALLENGE_LEVELS[index % 6];
+  const tier = index + 1;
+  return {
+    ...source,
+    id: `vault-challenge-${String(tier).padStart(2, '0')}`,
+    name: `VAULT CHALLENGE ${String(tier).padStart(2, '0')}`,
+    creator: 'FISH RAIN TEAM',
+    difficulty: `CHALLENGE · ${tier % 3 === 0 ? 'EXTREME' : tier % 2 === 0 ? 'HARD' : 'NORMAL'}`,
+    target: source.target + 4 + Math.floor(index / 4),
+    spawnDelay: Math.max(90, source.spawnDelay - 16),
+    minFallSpeed: source.minFallSpeed + 18,
+    maxFallSpeed: source.maxFallSpeed + 24,
+    theme: BONUS_THEMES[index % BONUS_THEMES.length],
+  };
+}));
+
+FISH_STYLES.push(...Array.from({ length: 50 }, (_, index) => ({
+  name: bonusGearName('fish', index),
+  unlockPoints: 999999,
+  bodyColor: bonusColor(index, 0), bellyColor: bonusColor(index, 1),
+  finColor: bonusColor(index, 2), accentColor: bonusColor(index, 3),
+  pattern: ['scales', 'clown', 'tang', 'koi', 'neon', 'puffer', 'angel', 'galaxy'][index % 8] as FishPattern,
+})));
+const BONUS_BASKET_START_INDEX = BASKET_STYLES.length;
+BASKET_STYLES.push(...Array.from({ length: 50 }, (_, index) => ({
+  name: bonusGearName('baskets', index),
+  unlockPoints: 999999,
+  bodyColor: bonusColor(index, 0), rimColor: bonusColor(index, 1),
+  weaveColor: bonusColor(index, 2), handleColor: bonusColor(index, 3),
+  highlightColor: 0xfff4bc, shadowColor: 0x15233b,
+})));
+const BONUS_NET_START_INDEX = NET_STYLES.length;
+NET_STYLES.push(...Array.from({ length: 50 }, (_, index) => ({
+  name: bonusGearName('nets', index),
+  unlockPoints: 999999,
+  hoopColor: bonusColor(index, 0), meshColor: bonusColor(index, 1),
+  handleColor: bonusColor(index, 2), accentColor: bonusColor(index, 3),
+})));
+const BONUS_SHIP_START_INDEX = SHIP_STYLES.length;
+SHIP_STYLES.push(...Array.from({ length: 50 }, (_, index) => ({
+  name: bonusGearName('ships', index),
+  unlockPoints: 999999,
+  hullColor: bonusColor(index, 0), deckColor: bonusColor(index, 1),
+  sailColor: bonusColor(index, 2), accentColor: bonusColor(index, 3),
+})));
+
 const ACHIEVEMENTS: AchievementConfig[] = [
   { id: 'first-catch', title: 'RAIN CATCHER', description: 'Catch your first falling fish.', reward: 'TITLE: RAINCATCHER' },
   { id: 'first-feed', title: 'BEAR FRIEND', description: 'Feed the bear for the first time.', reward: 'EMOTE: BEAR WAVE' },
-  { id: 'first-dime', title: 'SILVER LINING', description: 'Catch a silver dime.', reward: 'DIME TRAIL: SILVER' },
+  { id: 'first-dime', title: 'SILVER LINING', description: 'Catch a silver nickel.', reward: 'NICKEL TRAIL: SILVER' },
   { id: 'first-clear', title: 'HARBOR HERO', description: 'Clear your first level.', reward: 'BANNER: HARBOR HERO' },
   { id: 'four-clears', title: 'ISLAND HOPPER', description: 'Clear four different levels.', reward: 'BANNER: ISLAND HOPPER' },
   { id: 'all-clears', title: 'MASTER OF THE TIDE', description: 'Clear every main level.', reward: 'TITLE: TIDE MASTER' },
@@ -1202,9 +1306,9 @@ const ACHIEVEMENTS: AchievementConfig[] = [
   { id: 'feed-25', title: 'HUNGER HERO', description: 'Feed the bear 25 times.', reward: 'BEAR HEARTS: GOLD' },
   { id: 'feed-50', title: 'FEAST KEEPER', description: 'Feed the bear 50 times.', reward: 'BEAR AURA: HONEY' },
   { id: 'feed-100', title: 'BANQUET BOSS', description: 'Feed the bear 100 times.', reward: 'TITLE: BANQUET BOSS' },
-  { id: 'dime-5', title: 'COIN SCOUT', description: 'Catch 5 silver dimes.', reward: 'DIME TRAIL: AQUA' },
-  { id: 'dime-10', title: 'CHANGE CHASER', description: 'Catch 10 silver dimes.', reward: 'DIME TRAIL: VIOLET' },
-  { id: 'dime-25', title: 'DIME MAGNET', description: 'Catch 25 silver dimes.', reward: 'DIME TRAIL: GOLD' },
+  { id: 'dime-5', title: 'COIN SCOUT', description: 'Catch 5 silver nickels.', reward: 'NICKEL TRAIL: AQUA' },
+  { id: 'dime-10', title: 'CHANGE CHASER', description: 'Catch 10 silver nickels.', reward: 'NICKEL TRAIL: VIOLET' },
+  { id: 'dime-25', title: 'NICKEL MAGNET', description: 'Catch 25 silver nickels.', reward: 'NICKEL TRAIL: GOLD' },
   { id: 'points-25', title: 'POCKET CHANGE', description: 'Bank 25 total points.', reward: 'HUD BADGE: BRONZE' },
   { id: 'points-100', title: 'POINT PILOT', description: 'Bank 100 total points.', reward: 'HUD BADGE: JADE' },
   { id: 'points-250', title: 'SCORE SAILOR', description: 'Bank 250 total points.', reward: 'HUD BADGE: SAPPHIRE' },
@@ -1255,6 +1359,8 @@ export class MainScene extends Phaser.Scene {
   private statsContainer!: Phaser.GameObjects.Container;
   private profilesContainer!: Phaser.GameObjects.Container;
   private chatContainer!: Phaser.GameObjects.Container;
+  private codesContainer!: Phaser.GameObjects.Container;
+  private adminContainer!: Phaser.GameObjects.Container;
   private liveContainer!: Phaser.GameObjects.Container;
   private levelSelectContainer!: Phaser.GameObjects.Container;
   private levelListContainer!: Phaser.GameObjects.Container;
@@ -1265,6 +1371,9 @@ export class MainScene extends Phaser.Scene {
   private shopContainer!: Phaser.GameObjects.Container;
   private feedContainer!: Phaser.GameObjects.Container;
   private hudContainer!: Phaser.GameObjects.Container;
+  private endScreenContainer!: Phaser.GameObjects.Container;
+  private endScreenTitle!: Phaser.GameObjects.Text;
+  private endScreenDetails!: Phaser.GameObjects.Text;
   private scoreText!: Phaser.GameObjects.Text;
   private missesText!: Phaser.GameObjects.Text;
   private levelText!: Phaser.GameObjects.Text;
@@ -1288,6 +1397,10 @@ export class MainScene extends Phaser.Scene {
   private statsText!: Phaser.GameObjects.Text;
   private profileSearchInput!: Phaser.GameObjects.DOMElement;
   private profileListText!: Phaser.GameObjects.Text;
+  private profileNameRows: Phaser.GameObjects.Text[] = [];
+  private profileRowsContainer!: Phaser.GameObjects.Container;
+  private profileScrollY = 0;
+  private profileVisibleCount = 0;
   private profileDetailsText!: Phaser.GameObjects.Text;
   private profileStatusText!: Phaser.GameObjects.Text;
   private profileFollowText!: Phaser.GameObjects.Text;
@@ -1309,6 +1422,7 @@ export class MainScene extends Phaser.Scene {
   private dimeRushText!: Phaser.GameObjects.Text;
   private screenShakeText!: Phaser.GameObjects.Text;
   private pauseBlurText!: Phaser.GameObjects.Text;
+  private fullscreenMenuText!: Phaser.GameObjects.Text;
   private feedHungerFill!: Phaser.GameObjects.Rectangle;
   private feedHungerText!: Phaser.GameObjects.Text;
   private feedStockText!: Phaser.GameObjects.Text;
@@ -1373,11 +1487,30 @@ export class MainScene extends Phaser.Scene {
   private challengeSearchInput!: Phaser.GameObjects.DOMElement;
   private challengeBuilderIdInput!: Phaser.GameObjects.DOMElement;
   private challengeBuilderCreatorInput!: Phaser.GameObjects.DOMElement;
+  private challengeScrollY = 0;
+  private skinsScrollY = 0;
+  private skinsScrollItems: Array<{ object: Phaser.GameObjects.GameObject; baseY: number }> = [];
+  private skinsMask!: Phaser.Display.Masks.GeometryMask;
   private chatSelfIdInput!: Phaser.GameObjects.DOMElement;
   private chatPeerIdInput!: Phaser.GameObjects.DOMElement;
   private chatMessageInput!: Phaser.GameObjects.DOMElement;
   private chatMessagesText!: Phaser.GameObjects.Text;
   private chatStatusText!: Phaser.GameObjects.Text;
+  private chatNotificationButton!: Phaser.GameObjects.Rectangle;
+  private chatNotificationButtonText!: Phaser.GameObjects.Text;
+  private chatNotificationsPanel!: Phaser.GameObjects.Rectangle;
+  private chatNotificationsText!: Phaser.GameObjects.Text;
+  private chatNotifications: ChatMessage[] = [];
+  private chatNotificationsOpen = false;
+  private unreadChatNotifications = 0;
+  private codeInput!: Phaser.GameObjects.DOMElement;
+  private codeStatusText!: Phaser.GameObjects.Text;
+  private codeInventoryText!: Phaser.GameObjects.Text;
+  private adminTargetInput!: Phaser.GameObjects.DOMElement;
+  private adminStatusText!: Phaser.GameObjects.Text;
+  private adminLootText!: Phaser.GameObjects.Text;
+  private adminMenuButton!: Phaser.GameObjects.Rectangle;
+  private adminMenuText!: Phaser.GameObjects.Text;
   private livePlayersText!: Phaser.GameObjects.Text;
   private liveViewerText!: Phaser.GameObjects.Text;
   private liveViewerGraphics!: Phaser.GameObjects.Graphics;
@@ -1403,6 +1536,7 @@ export class MainScene extends Phaser.Scene {
   private settingsKey!: Phaser.Input.Keyboard.Key;
   private shopKey!: Phaser.Input.Keyboard.Key;
   private feedKey!: Phaser.Input.Keyboard.Key;
+  private backspaceKey!: Phaser.Input.Keyboard.Key;
   private levelKeys: Phaser.Input.Keyboard.Key[] = [];
   private selectedLevelIndex = 0;
   private selectedLevelIsChallenge = false;
@@ -1463,17 +1597,23 @@ export class MainScene extends Phaser.Scene {
   private accountUsername = '';
   private accountPasswordHash = '';
   private accountSignedIn = false;
+  private accountSessionRemembered = false;
   private accountCreatedAt = 0;
   private localAccounts: LocalAccount[] = [];
   private accountCreateMode = false;
   private accountReturnState: AccountReturnState = 'menu';
   private resetsMade = 0;
+  private redeemedCodes: string[] = [];
+  private bannedUsernames: Array<{ username: string; expiresAt: number }> = [];
+  private isAdmin = false;
+  private infiniteLoot = false;
   private followingUsernames: string[] = [];
   private friendUsernames: string[] = [];
   private incomingFriendRequests: string[] = [];
   private publicProfiles = new Map<string, PublicProfile>();
   private profileChannel?: BroadcastChannel;
   private selectedProfileUsername = '';
+  private profileModerationStatus = new Map<string, 'banned' | 'admin'>();
   private chatSelfId = '';
   private chatMessages: ChatMessage[] = [];
   private chatChannel?: BroadcastChannel;
@@ -1501,7 +1641,9 @@ export class MainScene extends Phaser.Scene {
     this.loadProgress();
     this.loadChatProgress();
     this.loadPublicProfiles();
+    this.publishKnownLocalAccounts();
     this.publishOwnProfile();
+    void this.loadRemoteProfiles();
     this.setupChatChannel();
     this.setupProfileChannel();
     this.setupLiveChannel();
@@ -1525,6 +1667,8 @@ export class MainScene extends Phaser.Scene {
     this.createProfilesMenu();
     this.createMenu();
     this.createChatMenu();
+    this.createCodesMenu();
+    this.createAdminMenu();
     this.createLiveMenu();
     this.createChallengesMenu();
     this.createChallengeBuilderMenu();
@@ -1538,6 +1682,9 @@ export class MainScene extends Phaser.Scene {
       this.startLivePresence();
     }
     this.input.on('wheel', this.handleScrollWheel, this);
+    this.scale.on('resize', this.applyResponsiveViewport, this);
+    window.addEventListener('resize', this.applyResponsiveViewport);
+    document.addEventListener('fullscreenchange', () => this.updateSettingsUi());
 
     this.messageText = this.add.text(WIDTH / 2, HEIGHT / 2, '', {
       align: 'center',
@@ -1549,6 +1696,7 @@ export class MainScene extends Phaser.Scene {
       stroke: '#08111f',
       strokeThickness: 5,
     }).setOrigin(0.5).setDepth(10).setVisible(false);
+    this.createEndScreen();
     this.tweens.add({
       targets: this.messageText,
       scale: 1.025,
@@ -1569,6 +1717,7 @@ export class MainScene extends Phaser.Scene {
     this.settingsKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.S);
     this.shopKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.P);
     this.feedKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.F);
+    this.backspaceKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.BACKSPACE);
     this.levelKeys = [
       Phaser.Input.Keyboard.KeyCodes.ONE,
       Phaser.Input.Keyboard.KeyCodes.TWO,
@@ -1581,12 +1730,23 @@ export class MainScene extends Phaser.Scene {
       Phaser.Input.Keyboard.KeyCodes.NINE,
     ].map((keyCode) => this.input.keyboard!.addKey(keyCode));
 
-    this.showAccount('menu');
+    if (this.accountSessionRemembered && this.hasAccountRecord()) {
+      this.accountSignedIn = true;
+      this.showMenu();
+      void this.verifyRestoredSession();
+    } else {
+      this.showAccount('menu');
+    }
+    this.applyMobileLayout();
+    this.applyResponsiveViewport();
   }
 
   update(_time: number, delta: number): void {
     if (this.pauseOnBlur && typeof document !== 'undefined' && document.hidden) {
       return;
+    }
+    if (this.gameState !== 'admin') {
+      this.adminContainer?.setVisible(false);
     }
     this.updateRain(delta);
     this.updateMobileControlsVisibility();
@@ -1655,6 +1815,13 @@ export class MainScene extends Phaser.Scene {
       return;
     }
 
+    if (this.gameState === 'admin') {
+      if (Phaser.Input.Keyboard.JustDown(this.menuKey)) {
+        this.showMenu();
+      }
+      return;
+    }
+
     if (this.gameState === 'stats') {
       if (Phaser.Input.Keyboard.JustDown(this.menuKey)) {
         this.showMenu();
@@ -1663,7 +1830,9 @@ export class MainScene extends Phaser.Scene {
     }
 
     if (this.gameState === 'profiles') {
-      if (Phaser.Input.Keyboard.JustDown(this.menuKey)) {
+      const profileInput = this.profileSearchInput?.node as HTMLInputElement | undefined;
+      if (Phaser.Input.Keyboard.JustDown(this.menuKey)
+        || (Phaser.Input.Keyboard.JustDown(this.backspaceKey) && document.activeElement !== profileInput)) {
         this.showMenu();
       }
       return;
@@ -1791,6 +1960,7 @@ export class MainScene extends Phaser.Scene {
           < (FISH_HITBOX_HEIGHT + catchHeight) / 2;
 
       if (caught) {
+        const rareStyleIndex = fallingFish.rareStyleIndex;
         this.removeFish(index);
         this.fishStock += 1;
         this.lifetimeCatches += 1;
@@ -1803,6 +1973,10 @@ export class MainScene extends Phaser.Scene {
         }
         if (this.usingShip) {
           this.unlockAchievement('captain-catcher');
+        }
+        if (rareStyleIndex !== undefined && !this.ownedFishStyles[rareStyleIndex]) {
+          this.ownedFishStyles[rareStyleIndex] = true;
+          this.showRareFishUnlock(FISH_STYLES[rareStyleIndex].name);
         }
         this.checkAchievementMilestones();
         this.saveProgress();
@@ -1838,15 +2012,15 @@ export class MainScene extends Phaser.Scene {
         * (this.wideCatchMode ? 1.18 : 1);
       const catchY = this.basket.y + (this.usingShip ? SHIP_HITBOX_OFFSET_Y : BASKET_HITBOX_OFFSET_Y);
       const caught = Math.abs(dime.object.x - this.basket.x)
-          < (DIME_HITBOX_SIZE + catchWidth) / 2
+          < (NICKEL_HITBOX_SIZE + catchWidth) / 2
         && Math.abs(dime.object.y - catchY)
-          < (DIME_HITBOX_SIZE + catchHeight) / 2;
+          < (NICKEL_HITBOX_SIZE + catchHeight) / 2;
 
       if (caught) {
         const catchX = dime.object.x;
         const catchYPosition = dime.object.y;
         this.removeDime(index);
-        this.addPoints(DIME_POINTS, catchX, catchYPosition);
+        this.addPoints(NICKEL_POINTS, catchX, catchYPosition);
         this.lifetimeDimes += 1;
         this.unlockAchievement('first-dime');
         this.checkAchievementMilestones();
@@ -1931,10 +2105,20 @@ export class MainScene extends Phaser.Scene {
             .slice(-100);
         }
       }
+      const savedNotifications = window.localStorage.getItem('fish-rain-chat-notifications');
+      if (savedNotifications && savedNotifications.length <= MAX_STORED_JSON_LENGTH) {
+        const parsed: unknown = JSON.parse(savedNotifications);
+        if (Array.isArray(parsed)) {
+          this.chatNotifications = parsed
+            .filter((message): message is ChatMessage => this.isSafeChatMessage(message))
+            .slice(-50);
+        }
+      }
       this.saveChatProgress();
     } catch {
       this.chatSelfId = this.generateChatId();
       this.chatMessages = [];
+      this.chatNotifications = [];
     }
   }
 
@@ -1954,6 +2138,7 @@ export class MainScene extends Phaser.Scene {
     try {
       window.localStorage.setItem('fish-rain-chat-id', this.chatSelfId);
       window.localStorage.setItem('fish-rain-chat-messages', JSON.stringify(this.chatMessages.slice(-100)));
+      window.localStorage.setItem('fish-rain-chat-notifications', JSON.stringify(this.chatNotifications.slice(-50)));
     } catch {
       // Chat remains available in memory if browser storage is blocked.
     }
@@ -2034,10 +2219,12 @@ export class MainScene extends Phaser.Scene {
     }
     this.chatMessages.push(message);
     this.chatMessages = this.chatMessages.slice(-100);
+    this.chatNotifications.push(message);
+    this.chatNotifications = this.chatNotifications.slice(-50);
+    this.unreadChatNotifications += 1;
     this.saveChatProgress();
-    if (this.gameState === 'chat') {
-      this.updateChatUi();
-    }
+    this.updateChatUi();
+    this.updateChatNotificationsUi();
   }
 
   private isSafeChatMessage(value: unknown): value is ChatMessage {
@@ -2088,6 +2275,191 @@ export class MainScene extends Phaser.Scene {
           ? `YOUR ID: ${this.chatSelfId}  |  CHAT WITH: ${peerId}  |  LOCAL MODE`
           : `YOUR ID: ${this.chatSelfId}  |  Paste a friend ID to begin  |  LOCAL MODE`,
     );
+    this.updateChatNotificationsUi();
+  }
+
+  private updateChatNotificationsUi(): void {
+    if (!this.chatNotificationButtonText) return;
+    this.chatNotificationButtonText.setText(
+      this.unreadChatNotifications > 0
+        ? `NOTIFICATIONS (${this.unreadChatNotifications})`
+        : 'NOTIFICATIONS',
+    );
+    this.chatNotificationsPanel.setVisible(this.chatNotificationsOpen && this.gameState === 'chat');
+    this.chatNotificationsText.setVisible(this.chatNotificationsOpen && this.gameState === 'chat');
+    if (!this.chatNotificationsOpen) return;
+    this.chatNotificationsText.setText(this.chatNotifications.length === 0
+      ? 'No incoming messages yet.'
+      : this.chatNotifications.slice(-10).reverse().map((message) => {
+        const time = new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        return `[${time}] ${message.from}\n${message.text}`;
+      }).join('\n\n'));
+  }
+
+  private redeemCode(): void {
+    if (this.gameState !== 'codes') return;
+    const input = this.codeInput.node as HTMLInputElement;
+    const code = input.value.trim().toUpperCase();
+    if (!code) {
+      this.codeStatusText.setText('Enter a code first.');
+      return;
+    }
+    if (code === ADMIN_CODE) {
+      this.isAdmin = true;
+      this.infiniteLoot = true;
+      this.grantGearVault('all');
+      this.codeStatusText.setText('ADMIN PANEL UNLOCKED · infinite loot enabled locally.');
+      input.value = '';
+      this.saveProgress();
+      this.updateCodesUi();
+      this.updateMenuUi();
+      return;
+    }
+    const reward = REWARD_CODES[code];
+    if (!reward) {
+      this.codeStatusText.setText('That code is not recognized. Check the spelling.');
+      return;
+    }
+    if (this.redeemedCodes.includes(code)) {
+      this.codeStatusText.setText('That code has already been redeemed on this browser.');
+      return;
+    }
+    if (reward.reward === 'points') this.totalPoints += reward.amount ?? 0;
+    else if (reward.reward === 'music') {
+      this.audio.setShiawaseMenuMode(true);
+      this.audio.startMenuMusic();
+    } else this.grantGearVault(reward.reward);
+    this.redeemedCodes.push(code);
+    this.codeStatusText.setText(`REDEEMED: ${reward.description}`);
+    input.value = '';
+    this.saveProgress();
+    this.updateCodesUi();
+    this.updateMenuUi();
+    this.updateSettingsUi();
+    this.updatePointsShopUi();
+  }
+
+  private grantGearVault(reward: RewardCode['reward']): void {
+    const unlockAll = reward === 'all';
+    if (unlockAll || reward === 'fish') this.ownedFishStyles = this.ownedFishStyles.map(() => true);
+    if (unlockAll || reward === 'baskets') this.ownedBasketStyles = this.ownedBasketStyles.map(() => true);
+    if (unlockAll || reward === 'nets') {
+      this.ownedNetStyles = this.ownedNetStyles.map(() => true);
+      this.hasNetUpgrade = true;
+    }
+    if (unlockAll || reward === 'ships') {
+      this.ownedShipStyles = this.ownedShipStyles.map(() => true);
+      this.hasShipMode = true;
+    }
+  }
+
+  private async banLocalAccount(): Promise<void> {
+    if (!this.isAdmin) return;
+    const username = this.normalizeAccountUsername(this.getDomInputValue(this.adminTargetInput));
+    if (!username) {
+      this.adminStatusText.setText('Enter a username to ban.');
+      return;
+    }
+    const sharedBan = await this.banAccountRemotely(username);
+    this.setLocalBan(username);
+    if (this.accountUsername === username) this.accountSignedIn = false;
+    this.adminStatusText.setText(sharedBan
+      ? `${username} is banned for every browser using this server.`
+      : `${username} is banned locally. Start the hosted server for cross-browser bans.`);
+    this.saveProgress();
+    this.updateAccountUi();
+  }
+
+  private async unbanLocalAccount(): Promise<void> {
+    if (!this.isAdmin) return;
+    const username = this.normalizeAccountUsername(this.getDomInputValue(this.adminTargetInput));
+    if (!username) {
+      this.adminStatusText.setText('Enter a username to unban.');
+      return;
+    }
+    const sharedUnban = await this.unbanAccountRemotely(username);
+    this.bannedUsernames = this.bannedUsernames.filter((ban) => ban.username !== username);
+    this.profileModerationStatus.delete(username);
+    this.adminStatusText.setText(sharedUnban
+      ? `${username} is unbanned for every browser using this server.`
+      : `${username} is unbanned locally. Start the hosted server for cross-browser unbans.`);
+    this.saveProgress();
+    if (this.gameState === 'profiles') this.updateProfilesUi();
+  }
+
+  private async banAccountRemotely(username: string): Promise<boolean> {
+    try {
+      const response = await fetch('/api/admin/ban', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: ADMIN_CODE, username }),
+      });
+      return response.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  private async unbanAccountRemotely(username: string): Promise<boolean> {
+    try {
+      const response = await fetch('/api/admin/unban', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: ADMIN_CODE, username }),
+      });
+      return response.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  private async isAccountBannedRemotely(username: string): Promise<boolean> {
+    try {
+      const response = await fetch(`/api/account-status?username=${encodeURIComponent(username)}`, {
+        cache: 'no-store',
+      });
+      if (!response.ok) return false;
+      const payload = await response.json() as { banned?: unknown };
+      return payload.banned === true;
+    } catch {
+      return false;
+    }
+  }
+
+  private setLocalBan(username: string, expiresAt = Date.now() + BAN_DURATION_MS): void {
+    this.bannedUsernames = this.bannedUsernames.filter((ban) => ban.username !== username);
+    this.bannedUsernames.push({ username, expiresAt });
+  }
+
+  private isLocallyBanned(username: string): boolean {
+    const activeBans = this.bannedUsernames.filter((ban) => ban.expiresAt > Date.now());
+    if (activeBans.length !== this.bannedUsernames.length) {
+      this.bannedUsernames = activeBans;
+      this.saveProgress();
+    }
+    return activeBans.some((ban) => ban.username === username);
+  }
+
+  private updateCodesUi(): void {
+    if (!this.codeInventoryText) return;
+    const redeemed = this.redeemedCodes.length > 0 ? this.redeemedCodes.join(', ') : 'none';
+    const vaults = [
+      `FISH VAULT: ${this.ownedFishStyles.filter(Boolean).length}/${FISH_STYLES.length}`,
+      `BASKET VAULT: ${this.ownedBasketStyles.filter(Boolean).length}/${BASKET_STYLES.length}`,
+      `NET VAULT: ${this.ownedNetStyles.filter(Boolean).length}/${NET_STYLES.length}`,
+      `SHIP VAULT: ${this.ownedShipStyles.filter(Boolean).length}/${SHIP_STYLES.length}`,
+    ];
+    const codes = Object.entries(REWARD_CODES)
+      .map(([code, reward]) => `${code}  ·  ${reward.description}`)
+      .join('\n');
+    const vaultUnlocks = [
+      `FISH-50-VAULT  ·  UNLOCK IN CODES  ·  ${this.ownedFishStyles.slice(BONUS_FISH_START_INDEX).filter(Boolean).length}/50 owned`,
+      `BASKET-50-VAULT  ·  UNLOCK IN CODES  ·  ${this.ownedBasketStyles.slice(-50).filter(Boolean).length}/50 owned`,
+      `NET-50-VAULT  ·  UNLOCK IN CODES  ·  ${this.ownedNetStyles.slice(-50).filter(Boolean).length}/50 owned`,
+      `SHIP-50-VAULT  ·  UNLOCK IN CODES  ·  ${this.ownedShipStyles.slice(-50).filter(Boolean).length}/50 owned`,
+    ].join('\n');
+    this.codeInventoryText.setText(`${codes}\n\nCODE-UNLOCKED GEAR\n${vaultUnlocks}\n\nREDEEMED: ${redeemed}\n\n${vaults.join('    ')}`);
+    this.adminLootText?.setText(`INFINITE LOOT: ${this.infiniteLoot ? 'ON' : 'OFF'}`);
   }
 
   private setupLiveChannel(): void {
@@ -2435,6 +2807,20 @@ export class MainScene extends Phaser.Scene {
       stroke: '#101820',
       strokeThickness: 3,
     }).setOrigin(0.5);
+    const exitButton = this.add.rectangle(WIDTH - 92, 122, 142, 30, 0x673b38, 0.96)
+      .setStrokeStyle(2, 0xffb19d)
+      .setInteractive();
+    const exitText = this.add.text(WIDTH - 92, 122, 'EXIT TO MENU', {
+      color: '#ffe8df',
+      fontFamily: 'Arial, sans-serif',
+      fontSize: '11px',
+      fontStyle: 'bold',
+    }).setOrigin(0.5);
+    exitButton.on('pointerdown', () => {
+      if (this.gameState === 'intro' || this.gameState === 'playing') {
+        this.showMenu();
+      }
+    });
     this.hitboxHintText = this.add.text(24, HEIGHT - 25, '', {
       color: '#c2d9e8',
       fontFamily: 'Arial, sans-serif',
@@ -2456,8 +2842,66 @@ export class MainScene extends Phaser.Scene {
       this.hungerText,
       this.fishStockText,
       controls,
+      exitButton,
+      exitText,
       this.hitboxHintText,
     ]).setDepth(5);
+  }
+
+  private createEndScreen(): void {
+    const overlay = this.add.rectangle(WIDTH / 2, HEIGHT / 2, WIDTH, HEIGHT, 0x020811, 0.72)
+      .setInteractive();
+    const panel = this.add.rectangle(WIDTH / 2, HEIGHT / 2, 560, 300, 0x102b4a, 0.99)
+      .setStrokeStyle(3, 0x9edbff);
+    this.endScreenTitle = this.add.text(WIDTH / 2, 176, '', {
+      color: '#ffe39a',
+      fontFamily: 'Arial, sans-serif',
+      fontSize: '30px',
+      fontStyle: 'bold',
+      letterSpacing: 2,
+      stroke: '#081b2c',
+      strokeThickness: 5,
+    }).setOrigin(0.5);
+    this.endScreenDetails = this.add.text(WIDTH / 2, 252, '', {
+      align: 'center',
+      color: '#e6f5ff',
+      fontFamily: 'Arial, sans-serif',
+      fontSize: '15px',
+      lineSpacing: 8,
+      stroke: '#081b2c',
+      strokeThickness: 3,
+    }).setOrigin(0.5);
+
+    const retryButton = this.add.rectangle(390, 378, 190, 48, 0xd4772f, 1)
+      .setStrokeStyle(2, 0xffd487)
+      .setInteractive();
+    const retryText = this.add.text(390, 378, 'RETRY', {
+      color: '#fff3df', fontFamily: 'Arial, sans-serif', fontSize: '15px', fontStyle: 'bold',
+    }).setOrigin(0.5);
+    retryButton.on('pointerover', () => retryButton.setFillStyle(0xe28a3e));
+    retryButton.on('pointerout', () => retryButton.setFillStyle(0xd4772f));
+    retryButton.on('pointerdown', () => this.startLevel(this.selectedLevelIndex, this.selectedLevelIsChallenge));
+
+    const menuButton = this.add.rectangle(570, 378, 190, 48, 0x355d77, 1)
+      .setStrokeStyle(2, 0xa9d9ee)
+      .setInteractive();
+    const menuText = this.add.text(570, 378, 'MENU', {
+      color: '#f3f9ff', fontFamily: 'Arial, sans-serif', fontSize: '15px', fontStyle: 'bold',
+    }).setOrigin(0.5);
+    menuButton.on('pointerover', () => menuButton.setFillStyle(0x477a98));
+    menuButton.on('pointerout', () => menuButton.setFillStyle(0x355d77));
+    menuButton.on('pointerdown', () => this.showMenu());
+
+    this.endScreenContainer = this.add.container(0, 0, [
+      overlay,
+      panel,
+      this.endScreenTitle,
+      this.endScreenDetails,
+      retryButton,
+      retryText,
+      menuButton,
+      menuText,
+    ]).setDepth(60).setVisible(false);
   }
 
   private createBasket(): void {
@@ -2769,6 +3213,10 @@ export class MainScene extends Phaser.Scene {
       color: '#f0dcff', fontFamily: 'Arial, sans-serif', fontSize: '12px', lineSpacing: 9,
       wordWrap: { width: 300 }, backgroundColor: '#2e2050', padding: { left: 16, right: 16, top: 14, bottom: 14 },
     }).setOrigin(0, 0).setFixedSize(300, 245);
+    this.profileRowsContainer = this.add.container(130, 182);
+    const profileMaskGraphics = this.add.graphics().fillStyle(0xffffff, 1).fillRect(130, 177, 300, 200).setVisible(false);
+    this.profileRowsContainer.setMask(new Phaser.Display.Masks.GeometryMask(this, profileMaskGraphics));
+    this.ensureProfileRows(10);
     this.profileDetailsText = this.add.text(485, 150, '', {
       color: '#f8efff', fontFamily: 'Arial, sans-serif', fontSize: '13px', lineSpacing: 7,
       wordWrap: { width: 340 }, stroke: '#130d22', strokeThickness: 2,
@@ -2795,7 +3243,7 @@ export class MainScene extends Phaser.Scene {
       color: '#f5e8ff', fontFamily: 'Arial, sans-serif', fontSize: '12px', fontStyle: 'bold',
     }).setOrigin(0.5);
     backButton.on('pointerdown', () => this.showMenu());
-    objects.push(panel, title, subtitle, this.profileSearchInput, this.profileListText, this.profileDetailsText,
+    objects.push(panel, title, subtitle, this.profileSearchInput, this.profileListText, this.profileRowsContainer, this.profileDetailsText,
       this.profileStatusText, followButton, this.profileFollowText, friendButton, this.profileFriendText, backButton, backText);
     this.profilesContainer = this.add.container(0, 0, objects).setDepth(45).setVisible(false);
     this.profileSearchInput.setVisible(false);
@@ -2854,6 +3302,7 @@ export class MainScene extends Phaser.Scene {
     createActionButton(WIDTH - 330, 'FEED\nBEAR', () => this.showFeedBear('playing'));
     createActionButton(WIDTH - 202, 'NET', () => this.toggleNet());
     createActionButton(WIDTH - 74, 'SHIP', () => this.toggleShip());
+    createActionButton(342, 'EXIT\nMENU', () => this.showMenu());
     this.mobileControlsHintText = this.add.text(WIDTH / 2, HEIGHT - 106, 'TOUCH CONTROLS', {
       color: '#d5ecff',
       fontFamily: 'Arial, sans-serif',
@@ -3068,6 +3517,34 @@ export class MainScene extends Phaser.Scene {
       }
     });
 
+    const codesButton = this.add.rectangle(385, 104, 190, 38, 0x7b4b2d, 0.98)
+      .setStrokeStyle(2, 0xffc36d)
+      .setInteractive();
+    const codesText = this.add.text(385, 104, 'CODES', {
+      color: '#fff1d3',
+      fontFamily: 'Arial, sans-serif',
+      fontSize: '13px',
+      fontStyle: 'bold',
+      letterSpacing: 2,
+    }).setOrigin(0.5);
+    codesButton.on('pointerdown', () => {
+      if (this.gameState === 'menu') this.showCodes();
+    });
+
+    this.adminMenuButton = this.add.rectangle(535, 104, 100, 38, 0x713d4d, 0.98)
+      .setStrokeStyle(2, 0xffa7aa)
+      .setInteractive();
+    this.adminMenuText = this.add.text(535, 104, 'ADMIN', {
+      color: '#ffe8e8',
+      fontFamily: 'Arial, sans-serif',
+      fontSize: '12px',
+      fontStyle: 'bold',
+      letterSpacing: 1,
+    }).setOrigin(0.5);
+    this.adminMenuButton.on('pointerdown', () => {
+      if (this.gameState === 'menu') this.showAdmin();
+    });
+
     const chatButton = this.add.rectangle(670, 405, 228, 48, 0x315f72, 0.98)
       .setStrokeStyle(3, 0x8de8ed)
       .setInteractive();
@@ -3135,7 +3612,7 @@ export class MainScene extends Phaser.Scene {
     const dimeInfo = this.add.text(
       385,
       407,
-      `Feed fish for ${FISH_CATCH_POINTS} point  |  Dimes add ${DIME_POINTS}`,
+      `Feed fish for ${FISH_CATCH_POINTS} point  |  Nickels add ${NICKEL_POINTS}`,
       {
         color: '#b9cee0',
         fontFamily: 'Arial, sans-serif',
@@ -3290,6 +3767,10 @@ export class MainScene extends Phaser.Scene {
       skinsHint,
       achievementsButton,
       achievementsText,
+      codesButton,
+      codesText,
+      this.adminMenuButton,
+      this.adminMenuText,
       chatButton,
       chatText,
       chatHint,
@@ -3327,6 +3808,22 @@ export class MainScene extends Phaser.Scene {
       stroke: '#081b2c',
       strokeThickness: 3,
     }).setOrigin(0.5);
+    this.chatNotificationButton = this.add.rectangle(825, 43, 170, 30, 0x7b4b2d, 0.98)
+      .setStrokeStyle(2, 0xffc36d).setInteractive();
+    this.chatNotificationButtonText = this.add.text(825, 43, '', {
+      color: '#fff1d3', fontFamily: 'Arial, sans-serif', fontSize: '10px', fontStyle: 'bold',
+    }).setOrigin(0.5);
+    this.chatNotificationButton.on('pointerdown', () => {
+      this.chatNotificationsOpen = !this.chatNotificationsOpen;
+      if (this.chatNotificationsOpen) this.unreadChatNotifications = 0;
+      this.updateChatNotificationsUi();
+    });
+    this.chatNotificationsPanel = this.add.rectangle(735, 245, 370, 310, 0x071a2d, 0.99)
+      .setStrokeStyle(2, 0xffc36d).setVisible(false);
+    this.chatNotificationsText = this.add.text(735, 105, '', {
+      color: '#f4f7ff', fontFamily: 'Arial, sans-serif', fontSize: '11px', lineSpacing: 7,
+      wordWrap: { width: 330 },
+    }).setOrigin(0.5, 0).setVisible(false);
     const selfLabel = this.add.text(205, 111, 'YOUR ID', {
       color: '#ffe39a',
       fontFamily: 'Arial, sans-serif',
@@ -3466,6 +3963,10 @@ export class MainScene extends Phaser.Scene {
       panel,
       title,
       subtitle,
+      this.chatNotificationButton,
+      this.chatNotificationButtonText,
+      this.chatNotificationsPanel,
+      this.chatNotificationsText,
       selfLabel,
       this.chatSelfIdInput,
       newIdButton,
@@ -3486,6 +3987,125 @@ export class MainScene extends Phaser.Scene {
     this.chatSelfIdInput.setVisible(false);
     this.chatPeerIdInput.setVisible(false);
     this.chatMessageInput.setVisible(false);
+  }
+
+  private createCodesMenu(): void {
+    const objects: Phaser.GameObjects.GameObject[] = [];
+    const panel = this.add.rectangle(WIDTH / 2, HEIGHT / 2, 850, 490, 0x2a233f, 0.98)
+      .setStrokeStyle(3, 0xffc36d);
+    const title = this.add.text(WIDTH / 2, 42, 'CODES', {
+      color: '#fff4d8', fontFamily: 'Arial, sans-serif', fontSize: '34px',
+      fontStyle: 'bold', letterSpacing: 5, stroke: '#21152b', strokeThickness: 5,
+    }).setOrigin(0.5);
+    const subtitle = this.add.text(WIDTH / 2, 78, 'Enter a code to claim points, gear vaults, and secret rewards.', {
+      color: '#f2d8a7', fontFamily: 'Arial, sans-serif', fontSize: '14px', stroke: '#21152b', strokeThickness: 3,
+    }).setOrigin(0.5);
+    this.codeInput = this.add.dom(350, 125, 'input', {
+      background: 'rgba(15, 10, 30, 0.98)', border: '2px solid #ffc36d', borderRadius: '6px',
+      color: '#fff8e8', font: 'bold 15px Arial', height: '34px', outline: 'none', padding: '4px 10px',
+      textAlign: 'center', width: '390px',
+    }).setOrigin(0.5).setDepth(50);
+    const codeInputElement = this.codeInput.node as HTMLInputElement;
+    this.prepareTextInput(codeInputElement, 'enter a reward code');
+    codeInputElement.maxLength = 32;
+    codeInputElement.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') this.redeemCode();
+    });
+    const redeemButton = this.add.rectangle(645, 125, 150, 36, 0xd4772f, 1)
+      .setStrokeStyle(2, 0xffe39a).setInteractive();
+    const redeemText = this.add.text(645, 125, 'REDEEM', {
+      color: '#fff7dc', fontFamily: 'Arial, sans-serif', fontSize: '13px', fontStyle: 'bold',
+    }).setOrigin(0.5);
+    redeemButton.on('pointerdown', () => this.redeemCode());
+    this.codeStatusText = this.add.text(WIDTH / 2, 162, '', {
+      align: 'center', color: '#ffe39a', fontFamily: 'Arial, sans-serif', fontSize: '12px',
+      fontStyle: 'bold', stroke: '#21152b', strokeThickness: 2,
+    }).setOrigin(0.5);
+    this.codeInventoryText = this.add.text(480, 205, '', {
+      align: 'center', color: '#f4e8cf', fontFamily: 'Arial, sans-serif', fontSize: '10px',
+      lineSpacing: 2, wordWrap: { width: 710 },
+    }).setOrigin(0.5, 0);
+    const listTitle = this.add.text(480, 184, 'AVAILABLE REWARD CODES', {
+      color: '#ffc36d', fontFamily: 'Arial, sans-serif', fontSize: '12px', fontStyle: 'bold', letterSpacing: 2,
+    }).setOrigin(0.5);
+    const backButton = this.add.rectangle(WIDTH / 2, 510, 240, 30, 0x355d77, 0.98)
+      .setStrokeStyle(2, 0xa9d9ee).setInteractive();
+    const backText = this.add.text(WIDTH / 2, 510, 'BACK TO MENU  (M)', {
+      color: '#f3f9ff', fontFamily: 'Arial, sans-serif', fontSize: '13px', fontStyle: 'bold',
+    }).setOrigin(0.5);
+    backButton.on('pointerdown', () => this.showMenu());
+    objects.push(panel, title, subtitle, this.codeInput, redeemButton, redeemText, this.codeStatusText,
+      listTitle, this.codeInventoryText, backButton, backText);
+    this.codesContainer = this.add.container(0, 0, objects).setDepth(30).setVisible(false);
+    this.codeInput.setVisible(false);
+  }
+
+  private createAdminMenu(): void {
+    const objects: Phaser.GameObjects.GameObject[] = [];
+    const panel = this.add.rectangle(WIDTH / 2, HEIGHT / 2, 850, 420, 0x291d36, 0.98)
+      .setStrokeStyle(3, 0xffa7aa);
+    const title = this.add.text(WIDTH / 2, 62, 'ADMIN', {
+      color: '#ffe8e8', fontFamily: 'Arial, sans-serif', fontSize: '34px',
+      fontStyle: 'bold', letterSpacing: 5, stroke: '#21152b', strokeThickness: 5,
+    }).setOrigin(0.5);
+    const subtitle = this.add.text(WIDTH / 2, 100, 'Moderate accounts and manage admin-only loot controls.', {
+      color: '#f0cbd0', fontFamily: 'Arial, sans-serif', fontSize: '14px', stroke: '#21152b', strokeThickness: 3,
+    }).setOrigin(0.5);
+    this.adminTargetInput = this.add.dom(350, 165, 'input', {
+      background: 'rgba(15, 10, 30, 0.98)', border: '2px solid #d77a8a', borderRadius: '6px',
+      color: '#fff8e8', font: 'bold 13px Arial', height: '34px', outline: 'none', padding: '4px 8px',
+      textAlign: 'center', width: '300px',
+    }).setOrigin(0.5).setDepth(50);
+    const adminInputElement = this.adminTargetInput.node as HTMLInputElement;
+    this.prepareTextInput(adminInputElement, 'username');
+    adminInputElement.maxLength = 20;
+    adminInputElement.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') this.banLocalAccount();
+    });
+    const banButton = this.add.rectangle(190, 225, 190, 38, 0x943f4b, 1)
+      .setStrokeStyle(2, 0xffb6bd).setInteractive();
+    const banText = this.add.text(190, 225, 'BAN FOR 1 DAY', {
+      color: '#fff1f1', fontFamily: 'Arial, sans-serif', fontSize: '11px', fontStyle: 'bold',
+    }).setOrigin(0.5);
+    banButton.on('pointerdown', () => this.banLocalAccount());
+    const unbanButton = this.add.rectangle(400, 225, 190, 38, 0x356d5c, 1)
+      .setStrokeStyle(2, 0x9ff0bd).setInteractive();
+    const unbanText = this.add.text(400, 225, 'UNBAN ACCOUNT', {
+      color: '#effff3', fontFamily: 'Arial, sans-serif', fontSize: '11px', fontStyle: 'bold',
+    }).setOrigin(0.5);
+    unbanButton.on('pointerdown', () => this.unbanLocalAccount());
+    const lootButton = this.add.rectangle(710, 225, 190, 38, 0x6a3d73, 1)
+      .setStrokeStyle(2, 0xe5b5ff).setInteractive();
+    this.adminLootText = this.add.text(710, 225, '', {
+      color: '#f9eaff', fontFamily: 'Arial, sans-serif', fontSize: '11px', fontStyle: 'bold',
+    }).setOrigin(0.5);
+    lootButton.on('pointerdown', () => {
+      this.infiniteLoot = !this.infiniteLoot;
+      this.saveProgress();
+      this.updateCodesUi();
+      this.updateAdminUi();
+    });
+    this.adminStatusText = this.add.text(WIDTH / 2, 290, '', {
+      align: 'center', color: '#ffccd2', fontFamily: 'Arial, sans-serif', fontSize: '12px',
+      wordWrap: { width: 700 },
+    }).setOrigin(0.5);
+    const info = this.add.text(WIDTH / 2, 340, 'Bans apply across browsers using this server and expire after 24 hours unless unbanned.', {
+      align: 'center', color: '#e8cdd1', fontFamily: 'Arial, sans-serif', fontSize: '11px',
+      wordWrap: { width: 700 },
+    }).setOrigin(0.5);
+    const backButton = this.add.rectangle(WIDTH / 2, 430, 240, 34, 0x355d77, 0.98)
+      .setStrokeStyle(2, 0xa9d9ee).setInteractive();
+    const backText = this.add.text(WIDTH / 2, 430, 'BACK TO MENU  (M)', {
+      color: '#f3f9ff', fontFamily: 'Arial, sans-serif', fontSize: '13px', fontStyle: 'bold',
+    }).setOrigin(0.5);
+    backButton.on('pointerdown', () => this.showMenu());
+    objects.push(panel, title, subtitle, this.adminTargetInput, banButton, banText, unbanButton, unbanText,
+      lootButton, this.adminLootText, this.adminStatusText, info, backButton, backText);
+    this.adminContainer = this.add.container(0, 0, objects).setDepth(45).setVisible(false);
+  }
+
+  private updateAdminUi(): void {
+    this.adminLootText?.setText(`INFINITE LOOT: ${this.infiniteLoot ? 'ON' : 'OFF'}`);
   }
 
   private createLiveMenu(): void {
@@ -3727,7 +4347,7 @@ export class MainScene extends Phaser.Scene {
     });
 
     const customX = 480;
-    const customY = 322;
+    const customY = 142 + Math.ceil(CHALLENGE_LEVELS.length / 3) * 82 + 20;
     this.challengeCustomButton = this.add.rectangle(customX, customY, 286, 60, 0x7d5bb2, 0.65)
       .setStrokeStyle(2, 0xe6c9ff)
       .setInteractive();
@@ -3794,6 +4414,8 @@ export class MainScene extends Phaser.Scene {
     cardObjects.push(this.challengeEditButton, this.challengeEditText);
 
     this.challengeListContainer = this.add.container(0, 0, cardObjects);
+    const challengeMaskGraphics = this.add.graphics().fillStyle(0xffffff, 1).fillRect(20, 116, 920, 350).setVisible(false);
+    this.challengeListContainer.setMask(new Phaser.Display.Masks.GeometryMask(this, challengeMaskGraphics));
     const backButton = this.add.rectangle(WIDTH / 2, 488, 240, 30, 0x355d77, 0.98)
       .setStrokeStyle(2, 0xa9d9ee)
       .setInteractive();
@@ -4117,6 +4739,13 @@ export class MainScene extends Phaser.Scene {
 
   private createSettingsMenu(): void {
     const settingsObjects: Phaser.GameObjects.GameObject[] = [];
+    this.skinsScrollItems = [];
+    const skinMaskGraphics = this.add.graphics().fillStyle(0xffffff, 1).fillRect(24, 98, 912, 350).setVisible(false);
+    this.skinsMask = new Phaser.Display.Masks.GeometryMask(this, skinMaskGraphics);
+    const trackSkin = (object: Phaser.GameObjects.GameObject, baseY: number): void => {
+      (object as Phaser.GameObjects.GameObject & { setMask: (mask: Phaser.Display.Masks.GeometryMask) => unknown }).setMask(this.skinsMask);
+      this.skinsScrollItems.push({ object, baseY });
+    };
     this.settingsTitle = this.add.text(WIDTH / 2, 38, 'SETTINGS', {
       color: '#f8fbff',
       fontFamily: 'Arial, sans-serif',
@@ -4177,13 +4806,14 @@ export class MainScene extends Phaser.Scene {
     }).setOrigin(0.5);
     settingsObjects.push(this.settingsTitle, this.settingsPointsText, resetButton, resetText, bearButton, bearPreview, bearButtonText, skinsKeeper, fishLabel);
     this.skinsOnlyObjects.push(fishLabel);
+    trackSkin(fishLabel, 113);
     this.settingsOnlyObjects.push(resetButton, resetText);
 
     FISH_STYLES.forEach((style, index) => {
       const column = index % 6;
       const row = Math.floor(index / 6);
       const x = 82 + column * 133;
-      const y = 132 + row * 38;
+      const y = 132 + row * 42;
       const button = this.add.rectangle(x, y, 124, 36, 0x102b43, 0.9)
         .setStrokeStyle(2, 0x6688a3)
         .setInteractive();
@@ -4213,9 +4843,12 @@ export class MainScene extends Phaser.Scene {
       this.fishStylePreviews.push(preview);
       settingsObjects.push(button, preview, label);
       this.skinsOnlyObjects.push(button, preview, label);
+      trackSkin(button, y);
+      trackSkin(preview, y - 1);
+      trackSkin(label, y);
     });
 
-    const basketLabel = this.add.text(WIDTH / 2, 220, 'BASKETS', {
+    const basketLabel = this.add.text(WIDTH / 2, 620, 'BASKETS', {
       color: '#f2f8ff',
       fontFamily: 'Arial, sans-serif',
       fontSize: '14px',
@@ -4226,12 +4859,13 @@ export class MainScene extends Phaser.Scene {
     }).setOrigin(0.5);
     settingsObjects.push(basketLabel);
     this.skinsOnlyObjects.push(basketLabel);
+    trackSkin(basketLabel, 620);
 
     BASKET_STYLES.forEach((style, index) => {
       const column = index % 6;
       const row = Math.floor(index / 6);
       const x = 82 + column * 133;
-      const y = 244 + row * 36;
+      const y = 642 + row * 40;
       const button = this.add.rectangle(x, y, 124, 32, 0x102b43, 0.92)
         .setStrokeStyle(2, 0x6688a3)
         .setInteractive();
@@ -4261,9 +4895,12 @@ export class MainScene extends Phaser.Scene {
       this.basketStylePreviews.push(preview);
       settingsObjects.push(button, preview, label);
       this.skinsOnlyObjects.push(button, preview, label);
+      trackSkin(button, y);
+      trackSkin(preview, y);
+      trackSkin(label, y);
     });
 
-    const netLabel = this.add.text(WIDTH / 2, 358, 'NETS', {
+    const netLabel = this.add.text(WIDTH / 2, 1140, 'NETS', {
       color: '#f2f8ff',
       fontFamily: 'Arial, sans-serif',
       fontSize: '14px',
@@ -4274,11 +4911,12 @@ export class MainScene extends Phaser.Scene {
     }).setOrigin(0.5);
     settingsObjects.push(netLabel);
     this.skinsOnlyObjects.push(netLabel);
+    trackSkin(netLabel, 1140);
 
     NET_STYLES.forEach((style, index) => {
       const column = index % 6;
       const x = 82 + column * 133;
-      const y = 383;
+      const y = 1162 + Math.floor(index / 6) * 38;
       const button = this.add.rectangle(x, y, 124, 34, 0x102b43, 0.92)
         .setStrokeStyle(2, 0x6688a3)
         .setInteractive();
@@ -4298,9 +4936,12 @@ export class MainScene extends Phaser.Scene {
       this.netStylePreviews.push(preview);
       settingsObjects.push(button, preview, label);
       this.skinsOnlyObjects.push(button, preview, label);
+      trackSkin(button, y);
+      trackSkin(preview, y);
+      trackSkin(label, y);
     });
 
-    const shipSkinLabel = this.add.text(WIDTH / 2, 410, 'SHIPS', {
+    const shipSkinLabel = this.add.text(WIDTH / 2, 1500, 'SHIPS', {
       color: '#f2f8ff',
       fontFamily: 'Arial, sans-serif',
       fontSize: '13px',
@@ -4311,9 +4952,10 @@ export class MainScene extends Phaser.Scene {
     }).setOrigin(0.5);
     settingsObjects.push(shipSkinLabel);
     this.skinsOnlyObjects.push(shipSkinLabel);
+    trackSkin(shipSkinLabel, 1500);
     SHIP_STYLES.forEach((style, index) => {
-      const x = 180 + index * 200;
-      const y = 435;
+      const x = 118 + (index % 4) * 225;
+      const y = 1522 + Math.floor(index / 4) * 38;
       const button = this.add.rectangle(x, y, 182, 30, 0x102b43, 0.92)
         .setStrokeStyle(2, 0x6688a3)
         .setInteractive();
@@ -4333,6 +4975,9 @@ export class MainScene extends Phaser.Scene {
       this.skinShipPreviews.push(preview);
       settingsObjects.push(button, preview, label);
       this.skinsOnlyObjects.push(button, preview, label);
+      trackSkin(button, y);
+      trackSkin(preview, y);
+      trackSkin(label, y);
     });
 
     const hitboxButton = this.add.rectangle(90, 425, 160, 34, 0x16324f, 0.96)
@@ -4465,6 +5110,14 @@ export class MainScene extends Phaser.Scene {
     }).setOrigin(0.5);
     mobileModeButton.on('pointerdown', () => this.toggleMobileControls());
 
+    const fullscreenButton = this.add.rectangle(630, 385, 160, 34, 0x315f72, 0.96)
+      .setStrokeStyle(2, 0x8de8ed)
+      .setInteractive();
+    this.fullscreenMenuText = this.add.text(630, 385, '', {
+      color: '#eaffff', fontFamily: 'Arial, sans-serif', fontSize: '11px', fontStyle: 'bold',
+    }).setOrigin(0.5);
+    fullscreenButton.on('pointerdown', () => this.toggleFullscreen());
+
     this.settingsMessageText = this.add.text(WIDTH / 2, 464, '', {
       color: '#ffd58a',
       fontFamily: 'Arial, sans-serif',
@@ -4519,6 +5172,8 @@ export class MainScene extends Phaser.Scene {
       this.liveModeText,
       mobileModeButton,
       this.mobileModeText,
+      fullscreenButton,
+      this.fullscreenMenuText,
       this.settingsMessageText,
       backButton,
       backText,
@@ -4553,6 +5208,8 @@ export class MainScene extends Phaser.Scene {
       this.liveModeText,
       mobileModeButton,
       this.mobileModeText,
+      fullscreenButton,
+      this.fullscreenMenuText,
     );
 
     this.settingsContainer = this.add.container(0, 0, settingsObjects).setDepth(25).setVisible(false);
@@ -5612,10 +6269,6 @@ export class MainScene extends Phaser.Scene {
   }
 
   private startLevel(levelIndex: number, isChallenge = false): void {
-    if (isChallenge && !this.accountSignedIn) {
-      this.showAccount('challenges');
-      return;
-    }
     this.stopTimers();
     this.clearFish();
     this.clearDimes();
@@ -5627,6 +6280,7 @@ export class MainScene extends Phaser.Scene {
     this.roundPoints = 0;
     this.misses = 0;
     this.gameState = 'intro';
+    this.endScreenContainer.setVisible(false);
     this.basket.x = WIDTH / 2;
     this.menuContainer.setVisible(false);
     this.levelSelectContainer.setVisible(false);
@@ -5701,15 +6355,13 @@ export class MainScene extends Phaser.Scene {
   }
 
   private showChallenges(): void {
-    if (!this.accountSignedIn) {
-      this.showAccount('challenges');
-      return;
-    }
     this.stopTimers();
     this.clearFish();
     this.clearDimes();
     this.audio.startMenuMusic();
     this.gameState = 'challenges';
+    this.challengeScrollY = 0;
+    this.challengeListContainer.setY(0);
     this.menuContainer.setVisible(false);
     this.levelSelectContainer.setVisible(false);
     this.settingsContainer.setVisible(false);
@@ -5755,12 +6407,86 @@ export class MainScene extends Phaser.Scene {
     this.updateChallengeBuilderUi();
   }
 
+  private showCodes(): void {
+    this.stopTimers();
+    this.clearFish();
+    this.clearDimes();
+    this.audio.startMenuMusic();
+    this.gameState = 'codes';
+    this.menuContainer.setVisible(false);
+    this.levelSelectContainer.setVisible(false);
+    this.challengeContainer.setVisible(false);
+    this.challengeBuilderContainer.setVisible(false);
+    this.chatContainer.setVisible(false);
+    this.chatSelfIdInput.setVisible(false);
+    this.chatPeerIdInput.setVisible(false);
+    this.chatMessageInput.setVisible(false);
+    this.settingsContainer.setVisible(false);
+    this.shopContainer.setVisible(false);
+    this.bearShopContainer.setVisible(false);
+    this.achievementsContainer.setVisible(false);
+    this.feedContainer.setVisible(false);
+    this.hudContainer.setVisible(false);
+    this.basket.setVisible(false);
+    this.bearContainer.setVisible(false);
+    this.messageText.setVisible(false);
+    this.codesContainer.setVisible(true);
+    this.codeInput.setVisible(true);
+    this.adminContainer?.setVisible(false);
+    this.drawMenuBackground();
+    this.updateCodesUi();
+  }
+
+  private showAdmin(): void {
+    if (!this.isAdmin) {
+      this.showCodes();
+      this.codeStatusText.setText('Redeem 446908865 first to unlock the Admin tab.');
+      return;
+    }
+    this.stopTimers();
+    this.clearFish();
+    this.clearDimes();
+    this.audio.startMenuMusic();
+    this.gameState = 'admin';
+    this.menuContainer.setVisible(false);
+    this.levelSelectContainer.setVisible(false);
+    this.challengeContainer.setVisible(false);
+    this.challengeBuilderContainer.setVisible(false);
+    this.challengeSearchInput.setVisible(false);
+    this.challengeBuilderIdInput.setVisible(false);
+    this.challengeBuilderCreatorInput.setVisible(false);
+    this.codesContainer.setVisible(false);
+    this.codeInput.setVisible(false);
+    this.chatContainer.setVisible(false);
+    this.chatSelfIdInput.setVisible(false);
+    this.chatPeerIdInput.setVisible(false);
+    this.chatMessageInput.setVisible(false);
+    this.liveContainer.setVisible(false);
+    this.liveChatInput.setVisible(false);
+    this.settingsContainer.setVisible(false);
+    this.shopContainer.setVisible(false);
+    this.bearShopContainer.setVisible(false);
+    this.achievementsContainer.setVisible(false);
+    this.feedContainer.setVisible(false);
+    this.accountContainer.setVisible(false);
+    this.statsContainer.setVisible(false);
+    this.profilesContainer.setVisible(false);
+    this.hudContainer.setVisible(false);
+    this.basket.setVisible(false);
+    this.bearContainer.setVisible(false);
+    this.messageText.setVisible(false);
+    this.adminContainer.setVisible(true);
+    this.updateAdminUi();
+    this.drawMenuBackground();
+  }
+
   private showMenu(): void {
     this.stopTimers();
     this.clearFish();
     this.clearDimes();
     this.audio.startMenuMusic();
     this.gameState = 'menu';
+    this.endScreenContainer.setVisible(false);
     this.selectedLevelIsChallenge = false;
     this.roundPoints = 0;
     this.hideResetConfirmation();
@@ -5771,6 +6497,9 @@ export class MainScene extends Phaser.Scene {
     this.challengeSearchInput.setVisible(false);
     this.challengeBuilderIdInput.setVisible(false);
     this.challengeBuilderCreatorInput.setVisible(false);
+    this.codesContainer.setVisible(false);
+    this.codeInput.setVisible(false);
+    this.adminContainer?.setVisible(false);
     this.chatContainer.setVisible(false);
     this.chatSelfIdInput.setVisible(false);
     this.chatPeerIdInput.setVisible(false);
@@ -5810,6 +6539,9 @@ export class MainScene extends Phaser.Scene {
     this.challengeSearchInput.setVisible(false);
     this.challengeBuilderIdInput.setVisible(false);
     this.challengeBuilderCreatorInput.setVisible(false);
+    this.codesContainer.setVisible(false);
+    this.codeInput.setVisible(false);
+    this.adminContainer?.setVisible(false);
     this.settingsContainer.setVisible(false);
     this.shopContainer.setVisible(false);
     this.bearShopContainer.setVisible(false);
@@ -5825,6 +6557,7 @@ export class MainScene extends Phaser.Scene {
     this.chatMessageInput.setVisible(true);
     this.drawMenuBackground();
     this.updateChatUi();
+    this.updateChatNotificationsUi();
   }
 
   private showLive(): void {
@@ -5923,7 +6656,7 @@ export class MainScene extends Phaser.Scene {
         : 'SIGN IN');
     this.accountMessageText.setText(
       this.accountSignedIn
-        ? 'Your account is stored in this browser. It is not a network account.'
+        ? 'Your account stays signed in on this browser until you sign out.'
         : this.accountCreateMode
           ? `${this.localAccounts.length}/${MAX_ACCOUNTS_PER_BROWSER} account slots used. Passwords are hashed locally.`
           : 'Passwords are hashed before local storage. Do not reuse an important password.',
@@ -5932,6 +6665,8 @@ export class MainScene extends Phaser.Scene {
 
   private continueAsGuest(): void {
     this.accountSignedIn = false;
+    this.accountSessionRemembered = false;
+    window.localStorage.setItem('fish-rain-account-session', 'off');
     this.showMenu();
   }
 
@@ -5988,6 +6723,8 @@ export class MainScene extends Phaser.Scene {
     }
     if (this.accountSignedIn) {
       this.accountSignedIn = false;
+      this.accountSessionRemembered = false;
+      window.localStorage.setItem('fish-rain-account-session', 'off');
       this.accountMessageText.setText('Signed out. Main levels remain available as a guest.');
       this.updateAccountUi();
       return;
@@ -6002,6 +6739,16 @@ export class MainScene extends Phaser.Scene {
     }
     if (password.length < 6) {
       this.accountMessageText.setText('Password must be at least 6 characters.');
+      return;
+    }
+    if (this.isLocallyBanned(username)) {
+      this.accountMessageText.setText('USER BANNED — SORRY.');
+      return;
+    }
+    if (await this.isAccountBannedRemotely(username)) {
+      this.setLocalBan(username);
+      this.accountMessageText.setText('USER BANNED — SORRY.');
+      this.saveProgress();
       return;
     }
     try {
@@ -6035,6 +6782,7 @@ export class MainScene extends Phaser.Scene {
         this.accountCreatedAt = account.createdAt;
       }
       this.accountSignedIn = true;
+      this.accountSessionRemembered = true;
       this.accountCreateMode = false;
       this.saveProgress();
       passwordInput.value = '';
@@ -6049,6 +6797,17 @@ export class MainScene extends Phaser.Scene {
       }
     } catch {
       this.accountMessageText.setText('This browser cannot securely create an account.');
+    }
+  }
+
+  private async verifyRestoredSession(): Promise<void> {
+    if (!this.accountSignedIn || !this.accountUsername) return;
+    if (await this.isAccountBannedRemotely(this.accountUsername)) {
+      this.accountSignedIn = false;
+      this.accountSessionRemembered = false;
+      window.localStorage.setItem('fish-rain-account-session', 'off');
+      this.showAccount('menu');
+      this.accountMessageText.setText('USER BANNED — SORRY.');
     }
   }
 
@@ -6095,7 +6854,7 @@ export class MainScene extends Phaser.Scene {
     const joined = this.accountCreatedAt > 0 ? new Date(this.accountCreatedAt).toLocaleDateString() : 'unknown';
     this.statsText.setText(
       `ACCOUNT: ${this.accountUsername}\nJOINED: ${joined}\n\n`
-      + `TOTAL POINTS: ${this.totalPoints}\nFISH CAUGHT: ${this.lifetimeCatches}\nFISH FED: ${this.lifetimeFeeds}\nDIMES CAUGHT: ${this.lifetimeDimes}\n\n`
+      + `TOTAL POINTS: ${this.totalPoints}\nFISH CAUGHT: ${this.lifetimeCatches}\nFISH FED: ${this.lifetimeFeeds}\nNICKELS CAUGHT: ${this.lifetimeDimes}\n\n`
       + `MAIN LEVELS CLEARED: ${mainClears}/${LEVELS.length}\nCHALLENGES CLEARED: ${challengeClears}/${this.completedChallengeLevels.length}\nACHIEVEMENTS: ${this.completedAchievements.filter(Boolean).length}/${ACHIEVEMENTS.length}\nRESETS MADE: ${this.resetsMade}`,
     );
   }
@@ -6178,6 +6937,36 @@ export class MainScene extends Phaser.Scene {
     }
   }
 
+  private async loadRemoteProfiles(): Promise<void> {
+    try {
+      const response = await fetch('/api/profiles', { cache: 'no-store' });
+      if (!response.ok) return;
+      const payload = await response.json() as unknown;
+      if (!Array.isArray(payload)) return;
+      payload.forEach((profile) => {
+        if (this.isSafePublicProfile(profile)) {
+          this.publicProfiles.set(profile.username, profile);
+        }
+      });
+      this.savePublicProfiles();
+      if (this.gameState === 'profiles') this.updateProfilesUi();
+    } catch {
+      // Local storage and BroadcastChannel remain available offline.
+    }
+  }
+
+  private async syncProfileRemotely(profile: PublicProfile): Promise<void> {
+    try {
+      await fetch('/api/profiles', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(profile),
+      });
+    } catch {
+      // The profile is still available locally when the server is offline.
+    }
+  }
+
   private getOwnPublicProfile(): PublicProfile | null {
     if (!this.hasAccountRecord()) {
       return null;
@@ -6203,6 +6992,53 @@ export class MainScene extends Phaser.Scene {
     };
   }
 
+  private ensureProfileRows(count: number): void {
+    while (this.profileNameRows.length < count) {
+      const index = this.profileNameRows.length;
+      const row = this.add.text(25, index * 21, '', {
+        color: '#f0dcff', fontFamily: 'Arial, sans-serif', fontSize: '12px', fontStyle: 'bold',
+        stroke: '#130d22', strokeThickness: 2,
+      }).setOrigin(0, 0.5).setVisible(false).setInteractive({ useHandCursor: true });
+      row.on('pointerdown', () => {
+        const username = row.getData('profileUsername') as string | undefined;
+        if (username) {
+          this.selectedProfileUsername = username;
+          this.updateProfilesUi();
+        }
+      });
+      this.profileNameRows.push(row);
+      this.profileRowsContainer.add(row);
+    }
+  }
+
+  private publishKnownLocalAccounts(): void {
+    this.localAccounts.forEach((account) => {
+      if (account.username === this.accountUsername || this.publicProfiles.has(account.username)) return;
+      const profile: PublicProfile = {
+        username: account.username,
+        createdAt: account.createdAt,
+        totalPoints: 0,
+        lifetimeCatches: 0,
+        lifetimeFeeds: 0,
+        lifetimeDimes: 0,
+        mainClears: 0,
+        challengeClears: 0,
+        achievementCount: 0,
+        fishStyle: FISH_STYLES[0].name,
+        basketStyle: BASKET_STYLES[0].name,
+        netStyle: 'NONE',
+        bearStyle: BEAR_STYLES[0].name,
+        shipStyle: 'NONE',
+        following: [],
+        friends: [],
+        followers: 0,
+      };
+      this.publicProfiles.set(account.username, profile);
+      void this.syncProfileRemotely(profile);
+    });
+    this.savePublicProfiles();
+  }
+
   private publishOwnProfile(): void {
     const profile = this.getOwnPublicProfile();
     if (!profile) {
@@ -6211,6 +7047,7 @@ export class MainScene extends Phaser.Scene {
     this.publicProfiles.set(profile.username, profile);
     this.savePublicProfiles();
     this.profileChannel?.postMessage({ kind: 'profile', profile } satisfies ProfilePacket);
+    void this.syncProfileRemotely(profile);
   }
 
   private isSafePublicProfile(value: unknown): value is PublicProfile {
@@ -6276,7 +7113,10 @@ export class MainScene extends Phaser.Scene {
     this.messageText.setVisible(false);
     this.profilesContainer.setVisible(true);
     this.profileSearchInput.setVisible(true);
+    this.profileScrollY = 0;
+    this.profileRowsContainer.setY(182);
     this.profileChannel?.postMessage({ kind: 'request-profiles', from: this.accountUsername } satisfies ProfilePacket);
+    void this.loadRemoteProfiles();
     this.updateProfilesUi();
     this.drawMenuBackground();
   }
@@ -6287,26 +7127,51 @@ export class MainScene extends Phaser.Scene {
     const profiles = [...this.publicProfiles.values()]
       .filter((profile) => !query || profile.username.includes(query))
       .sort((a, b) => a.username.localeCompare(b.username));
+    this.ensureProfileRows(Math.max(1, profiles.length));
+    this.profileVisibleCount = profiles.length;
+    const maxScroll = Math.max(0, profiles.length * 21 - 200);
+    this.profileScrollY = Phaser.Math.Clamp(this.profileScrollY, -maxScroll, 0);
+    this.profileRowsContainer.setY(182 + this.profileScrollY);
+    this.refreshProfileModerationStatus(profiles);
     if (!this.selectedProfileUsername || !profiles.some((profile) => profile.username === this.selectedProfileUsername)) {
       this.selectedProfileUsername = profiles[0]?.username ?? '';
     }
     const selected = this.publicProfiles.get(this.selectedProfileUsername);
     this.profileListText.setText(profiles.length === 0
       ? 'NO PROFILES FOUND\n\nOpen another copy of the game after creating an account to discover it here.'
-      : `KNOWN ACCOUNTS\n\n${profiles.map((profile) => `${profile.username}${profile.username === this.accountUsername ? '  (YOU)' : ''}`).join('\n')}`);
+      : 'KNOWN ACCOUNTS\n\n');
+    this.profileNameRows.forEach((row, index) => {
+      const profile = profiles[index];
+      row.setVisible(Boolean(profile));
+      if (!profile) return;
+      const status = this.profileModerationStatus.get(profile.username);
+      row.setText(`${profile.username}${profile.username === this.accountUsername ? '  (YOU)' : ''}`);
+      row.setData('profileUsername', profile.username);
+      row.setColor(status === 'banned' ? '#ff6875' : status === 'admin' ? '#75ff9e' : '#f0dcff');
+    });
+    if (profiles.length === 0 && query) {
+      void this.isAccountBannedRemotely(query).then((banned) => {
+        if (!banned || this.gameState !== 'profiles') return;
+        this.profileListText.setText('ACCOUNT STATUS\n\n');
+        const row = this.profileNameRows[0];
+        row.setVisible(true);
+        row.setData('profileUsername', query);
+        row.setText(`${query}  ·  BANNED`);
+        row.setColor('#ff6875');
+      });
+    }
     if (!selected) {
       this.profileDetailsText.setText('Select a username by typing it above.');
       this.profileFollowText.setText('FOLLOW');
       this.profileFriendText.setText('ADD FRIEND');
       return;
     }
-    this.profileSearchInput.node && ((this.profileSearchInput.node as HTMLInputElement).value = this.selectedProfileUsername);
     const isSelf = selected.username === this.accountUsername;
     const following = selected.following.length > 0 ? selected.following.join(', ') : 'none';
     const friends = selected.friends.length > 0 ? selected.friends.join(', ') : 'none';
     this.profileDetailsText.setText(
       `${selected.username}${isSelf ? '  (YOU)' : ''}\n\n`
-      + `POINTS: ${Math.floor(selected.totalPoints)}\nFISH CAUGHT: ${Math.floor(selected.lifetimeCatches)}\nFISH FED: ${Math.floor(selected.lifetimeFeeds)}\nDIMES: ${Math.floor(selected.lifetimeDimes)}\n`
+      + `POINTS: ${Math.floor(selected.totalPoints)}\nFISH CAUGHT: ${Math.floor(selected.lifetimeCatches)}\nFISH FED: ${Math.floor(selected.lifetimeFeeds)}\nNICKELS: ${Math.floor(selected.lifetimeDimes)}\n`
       + `MAIN CLEARS: ${Math.floor(selected.mainClears)}\nCHALLENGE CLEARS: ${Math.floor(selected.challengeClears)}\nACHIEVEMENTS: ${Math.floor(selected.achievementCount)}\nFOLLOWERS: ${Math.floor(selected.followers)}\n\n`
       + `EQUIPPED SKINS\nFish: ${selected.fishStyle}\nBasket: ${selected.basketStyle}\nNet: ${selected.netStyle}\nBear: ${selected.bearStyle}\nShip: ${selected.shipStyle}\n\n`
       + `FOLLOWING: ${following}\nFRIENDS: ${friends}`,
@@ -6318,6 +7183,26 @@ export class MainScene extends Phaser.Scene {
         ? 'Profiles are local to this browser. Online account discovery needs a server.'
         : 'LOCAL PROFILE DIRECTORY  ·  same-origin accounts only',
     );
+  }
+
+  private refreshProfileModerationStatus(profiles: PublicProfile[]): void {
+    profiles.forEach((profile) => {
+      if (this.isAdmin && profile.username === this.accountUsername) {
+        this.profileModerationStatus.set(profile.username, 'admin');
+        return;
+      }
+      if (this.isLocallyBanned(profile.username)) {
+        this.profileModerationStatus.set(profile.username, 'banned');
+        return;
+      }
+      void this.isAccountBannedRemotely(profile.username).then((banned) => {
+        if (banned) this.profileModerationStatus.set(profile.username, 'banned');
+        else if (this.profileModerationStatus.get(profile.username) === 'banned') this.profileModerationStatus.delete(profile.username);
+        const row = this.profileNameRows[profiles.indexOf(profile)];
+        const status = this.profileModerationStatus.get(profile.username);
+        if (row) row.setColor(status === 'banned' ? '#ff6875' : status === 'admin' ? '#75ff9e' : '#f0dcff');
+      });
+    });
   }
 
   private toggleFollowSelectedProfile(): void {
@@ -6382,6 +7267,10 @@ export class MainScene extends Phaser.Scene {
     this.clearDimes();
     this.audio.startMenuMusic();
     this.gameState = 'skins';
+    this.skinsScrollY = 0;
+    this.skinsScrollItems.forEach(({ object, baseY }) => {
+      (object as Phaser.GameObjects.GameObject & { y: number }).y = baseY;
+    });
     this.menuContainer.setVisible(false);
     this.levelSelectContainer.setVisible(false);
     this.settingsTitle.setText('SKINS');
@@ -6445,6 +7334,11 @@ export class MainScene extends Phaser.Scene {
     this.customChallenge = null;
     this.customChallengeId = 'my-challenge';
     this.customChallengeCreator = '';
+    this.redeemedCodes = [];
+    this.bannedUsernames = [];
+    this.isAdmin = false;
+    this.infiniteLoot = false;
+    this.audio.setShiawaseMenuMode(false);
     this.completedAchievements = ACHIEVEMENTS.map(() => false);
     this.lifetimeCatches = 0;
     this.lifetimeFeeds = 0;
@@ -6591,8 +7485,14 @@ export class MainScene extends Phaser.Scene {
     }
     if (this.gameState === 'levelSelect') {
       this.scrollLevelList(deltaY);
+    } else if (this.gameState === 'challenges') {
+      this.scrollChallengeList(deltaY);
     } else if (this.gameState === 'achievements') {
       this.scrollAchievementList(deltaY);
+    } else if (this.gameState === 'skins') {
+      this.scrollSkinsList(deltaY);
+    } else if (this.gameState === 'profiles') {
+      this.scrollProfileList(deltaY);
     }
   }
 
@@ -6612,16 +7512,47 @@ export class MainScene extends Phaser.Scene {
     this.achievementListContainer.setY(this.achievementScrollY);
   }
 
+  private scrollChallengeList(deltaY: number): void {
+    const contentBottom = 142 + Math.ceil(CHALLENGE_LEVELS.length / 3) * 82 + 51;
+    const maxScroll = Math.max(0, contentBottom - 466);
+    this.challengeScrollY = Phaser.Math.Clamp(this.challengeScrollY - deltaY * 0.7, -maxScroll, 0);
+    this.challengeListContainer.setY(this.challengeScrollY);
+  }
+
+  private scrollSkinsList(deltaY: number): void {
+    const maxY = this.skinsScrollItems.reduce((highest, item) => Math.max(highest, item.baseY), 0);
+    const maxScroll = Math.max(0, maxY - 446);
+    this.skinsScrollY = Phaser.Math.Clamp(this.skinsScrollY - deltaY * 0.7, -maxScroll, 0);
+    this.skinsScrollItems.forEach(({ object, baseY }) => {
+      (object as Phaser.GameObjects.GameObject & { y: number }).y = baseY + this.skinsScrollY;
+    });
+  }
+
+  private scrollProfileList(deltaY: number): void {
+    const maxScroll = Math.max(0, this.profileVisibleCount * 21 - 200);
+    this.profileScrollY = Phaser.Math.Clamp(this.profileScrollY - deltaY * 0.7, -maxScroll, 0);
+    this.profileRowsContainer.setY(182 + this.profileScrollY);
+  }
+
   private spawnFish(): void {
     if (this.gameState !== 'playing') {
       return;
     }
 
     const facing = Phaser.Math.Between(0, 1) === 0 ? 1 : -1;
+    const lockedBonusFish = this.ownedFishStyles
+      .map((owned, index) => (!owned && index >= BONUS_FISH_START_INDEX ? index : -1))
+      .filter((index) => index >= 0);
+    const rareStyleIndex = !this.vegMode
+      && lockedBonusFish.length > 0
+      && Math.random() < RARE_FISH_CATCH_CHANCE
+      ? lockedBonusFish[Phaser.Math.Between(0, lockedBonusFish.length - 1)]
+      : undefined;
+    const fishStyle = rareStyleIndex === undefined ? this.currentFishStyle : FISH_STYLES[rareStyleIndex];
     const object = this.vegMode
       ? this.createBroccoliVisual(Phaser.Math.Between(55, WIDTH - 55), 104, 1)
       : this.createFishVisual(
-        this.currentFishStyle,
+        fishStyle,
         Phaser.Math.Between(55, WIDTH - 55),
         104,
         1,
@@ -6643,6 +7574,7 @@ export class MainScene extends Phaser.Scene {
         * (this.calmRainMode ? 0.78 : 1),
       drift: Phaser.Math.Between(-25, 25),
       phase: Phaser.Math.FloatBetween(0, Math.PI * 2),
+      rareStyleIndex,
     });
   }
 
@@ -6674,8 +7606,8 @@ export class MainScene extends Phaser.Scene {
     const hitbox = this.add.rectangle(
       0,
       0,
-      DIME_HITBOX_SIZE,
-      DIME_HITBOX_SIZE,
+      NICKEL_HITBOX_SIZE,
+      NICKEL_HITBOX_SIZE,
       0xff3344,
       0,
     ).setStrokeStyle(2, 0xff4055).setVisible(this.showHitboxes);
@@ -6837,7 +7769,7 @@ export class MainScene extends Phaser.Scene {
       button.setFillStyle(selected ? 0x174663 : owned ? 0x102b43 : 0x20252b, 0.94);
       this.fishStylePreviews[index].setAlpha(owned ? 1 : 0.3);
       this.fishStyleLabels[index].setText(
-        `${style.name}\n${selected ? 'SELECTED' : owned ? 'OWNED' : 'BUY IN SHOP'}`,
+        `${style.name}\n${selected ? 'SELECTED' : owned ? 'OWNED' : index >= BONUS_FISH_START_INDEX ? 'UNLOCK IN CODES' : 'BUY IN SHOP'}`,
       );
     });
   }
@@ -6854,7 +7786,7 @@ export class MainScene extends Phaser.Scene {
       button.setFillStyle(selected ? 0x4b3826 : owned ? 0x102b43 : 0x20252b, 0.94);
       this.basketStylePreviews[index].setAlpha(owned ? 1 : 0.3);
       this.basketStyleLabels[index].setText(
-        `${style.name}\n${selected ? 'SELECTED' : owned ? 'OWNED' : 'BUY IN SHOP'}`,
+        `${style.name}\n${selected ? 'SELECTED' : owned ? 'OWNED' : index >= BONUS_BASKET_START_INDEX ? 'UNLOCK IN CODES' : 'BUY IN SHOP'}`,
       );
     });
   }
@@ -6871,7 +7803,7 @@ export class MainScene extends Phaser.Scene {
       button.setFillStyle(selected ? 0x174663 : owned ? 0x102b43 : 0x20252b, 0.94);
       this.netStylePreviews[index].setAlpha(owned ? 1 : 0.3);
       this.netStyleLabels[index].setText(
-        `${style.name}\n${selected ? 'SELECTED' : owned ? 'OWNED' : 'BUY IN SHOP'}`,
+        `${style.name}\n${selected ? 'SELECTED' : owned ? 'OWNED' : index >= BONUS_NET_START_INDEX ? 'UNLOCK IN CODES' : 'BUY IN SHOP'}`,
       );
     });
   }
@@ -6884,7 +7816,7 @@ export class MainScene extends Phaser.Scene {
       button.setStrokeStyle(selected ? 4 : 2, selected ? style.accentColor : owned ? 0x6688a3 : 0x4d5660);
       button.setFillStyle(selected ? 0x174663 : owned ? 0x102b43 : 0x20252b, 0.94);
       this.skinShipPreviews[index].setAlpha(owned ? 1 : 0.3);
-      this.skinShipLabels[index].setText(`${style.name}\n${selected ? 'SELECTED' : owned ? 'OWNED' : 'BUY IN SHOP'}`);
+      this.skinShipLabels[index].setText(`${style.name}\n${selected ? 'SELECTED' : owned ? 'OWNED' : index >= BONUS_SHIP_START_INDEX ? 'UNLOCK IN CODES' : 'BUY IN SHOP'}`);
     });
   }
 
@@ -6894,7 +7826,7 @@ export class MainScene extends Phaser.Scene {
     }
     const style = FISH_STYLES[index];
     if (!this.ownedFishStyles[index]) {
-      this.settingsMessageText.setText(`Buy ${style.name} in the Points Shop first.`);
+      this.settingsMessageText.setText(index >= BONUS_FISH_START_INDEX ? `Unlock ${style.name} with a gear code in CODES.` : `Buy ${style.name} in the Points Shop first.`);
       this.audio.playMiss();
       return;
     }
@@ -6911,7 +7843,7 @@ export class MainScene extends Phaser.Scene {
     }
     const style = BASKET_STYLES[index];
     if (!this.ownedBasketStyles[index]) {
-      this.settingsMessageText.setText(`Buy the ${style.name} basket in the Points Shop first.`);
+      this.settingsMessageText.setText(index >= BONUS_BASKET_START_INDEX ? `Unlock ${style.name} with a gear code in CODES.` : `Buy the ${style.name} basket in the Points Shop first.`);
       this.audio.playMiss();
       return;
     }
@@ -6929,7 +7861,7 @@ export class MainScene extends Phaser.Scene {
     }
     const style = NET_STYLES[index];
     if (!this.ownedNetStyles[index]) {
-      this.settingsMessageText.setText(`Buy the ${style.name} in the Points Shop first.`);
+      this.settingsMessageText.setText(index >= BONUS_NET_START_INDEX ? `Unlock ${style.name} with a gear code in CODES.` : `Buy the ${style.name} in the Points Shop first.`);
       this.audio.playMiss();
       return;
     }
@@ -6948,7 +7880,7 @@ export class MainScene extends Phaser.Scene {
     }
     const style = SHIP_STYLES[index];
     if (!this.ownedShipStyles[index]) {
-      this.settingsMessageText.setText(`Buy the ${style.name} in the Points Shop first.`);
+      this.settingsMessageText.setText(index >= BONUS_SHIP_START_INDEX ? `Unlock ${style.name} with a gear code in CODES.` : `Buy the ${style.name} in the Points Shop first.`);
       this.audio.playMiss();
       return;
     }
@@ -6972,7 +7904,7 @@ export class MainScene extends Phaser.Scene {
       button.setFillStyle(owned ? 0x263029 : affordable ? 0x28502e : 0x252b27, 0.96);
       this.shopFishPreviews[index].setAlpha(owned ? 0.55 : 1);
       this.shopFishLabels[index].setText(
-        `${style.name}\n${owned ? 'OWNED' : `${style.unlockPoints} PTS`}`,
+        `${style.name}\n${owned ? 'OWNED' : index >= BONUS_FISH_START_INDEX ? 'UNLOCK IN CODES' : `${style.unlockPoints} PTS`}`,
       );
     });
 
@@ -6984,7 +7916,7 @@ export class MainScene extends Phaser.Scene {
       button.setFillStyle(owned ? 0x263029 : affordable ? 0x28502e : 0x252b27, 0.96);
       this.shopBasketPreviews[index].setAlpha(owned ? 0.55 : 1);
       this.shopBasketLabels[index].setText(
-        `${style.name}\n${owned ? 'OWNED' : `${style.unlockPoints} PTS`}`,
+        `${style.name}\n${owned ? 'OWNED' : index >= BONUS_BASKET_START_INDEX ? 'UNLOCK IN CODES' : `${style.unlockPoints} PTS`}`,
       );
     });
 
@@ -6996,7 +7928,7 @@ export class MainScene extends Phaser.Scene {
       button.setFillStyle(owned ? 0x263029 : affordable ? 0x28502e : 0x252b27, 0.96);
       this.shopNetPreviews[index].setAlpha(owned ? 0.55 : 1);
       this.shopNetLabels[index].setText(
-        `${style.name}\n${owned ? 'OWNED' : `${style.unlockPoints} PTS`}`,
+        `${style.name}\n${owned ? 'OWNED' : index >= BONUS_NET_START_INDEX ? 'UNLOCK IN CODES' : `${style.unlockPoints} PTS`}`,
       );
     });
     this.shipStyleButtons.forEach((button, index) => {
@@ -7007,7 +7939,7 @@ export class MainScene extends Phaser.Scene {
       button.setFillStyle(owned ? 0x263029 : affordable ? 0x28502e : 0x252b27, 0.96);
       this.shipStylePreviews[index].setAlpha(owned ? 0.55 : 1);
       this.shipStyleLabels[index].setText(
-        `${style.name}\n${owned ? 'OWNED' : `${style.unlockPoints} PTS`}`,
+        `${style.name}\n${owned ? 'OWNED' : index >= BONUS_SHIP_START_INDEX ? 'UNLOCK IN CODES' : `${style.unlockPoints} PTS`}`,
       );
     });
     this.netCatalogText.setText(
@@ -7024,7 +7956,7 @@ export class MainScene extends Phaser.Scene {
       this.shopMessageText.setText(`You already own ${style.name}. Equip it in Skins.`);
       return;
     }
-    if (this.totalPoints < style.unlockPoints) {
+    if (!this.infiniteLoot && this.totalPoints < style.unlockPoints) {
       this.shopMessageText.setText(
         `You need ${style.unlockPoints - this.totalPoints} more points for ${style.name}.`,
       );
@@ -7032,7 +7964,7 @@ export class MainScene extends Phaser.Scene {
       return;
     }
 
-    this.totalPoints -= style.unlockPoints;
+    if (!this.infiniteLoot) this.totalPoints -= style.unlockPoints;
     this.ownedFishStyles[index] = true;
     this.unlockAchievement('style-owner');
     this.shopMessageText.setText(`${style.name} purchased! Equip it in Skins.`);
@@ -7052,7 +7984,7 @@ export class MainScene extends Phaser.Scene {
       this.shopMessageText.setText(`You already own the ${style.name} basket. Equip it in Skins.`);
       return;
     }
-    if (this.totalPoints < style.unlockPoints) {
+    if (!this.infiniteLoot && this.totalPoints < style.unlockPoints) {
       this.shopMessageText.setText(
         `You need ${style.unlockPoints - this.totalPoints} more points for the ${style.name} basket.`,
       );
@@ -7060,7 +7992,7 @@ export class MainScene extends Phaser.Scene {
       return;
     }
 
-    this.totalPoints -= style.unlockPoints;
+    if (!this.infiniteLoot) this.totalPoints -= style.unlockPoints;
     this.ownedBasketStyles[index] = true;
     this.unlockAchievement('style-owner');
     this.shopMessageText.setText(`${style.name} basket purchased! Equip it in Skins.`);
@@ -7080,13 +8012,13 @@ export class MainScene extends Phaser.Scene {
       this.shopMessageText.setText(`You already own the ${style.name}. Equip it in Skins.`);
       return;
     }
-    if (this.totalPoints < style.unlockPoints) {
+    if (!this.infiniteLoot && this.totalPoints < style.unlockPoints) {
       this.shopMessageText.setText(`You need ${style.unlockPoints - this.totalPoints} more points for the ${style.name}.`);
       this.audio.playMiss();
       return;
     }
 
-    this.totalPoints -= style.unlockPoints;
+    if (!this.infiniteLoot) this.totalPoints -= style.unlockPoints;
     this.ownedNetStyles[index] = true;
     this.unlockAchievement('net-owner');
     this.hasNetUpgrade = true;
@@ -7110,12 +8042,12 @@ export class MainScene extends Phaser.Scene {
       this.shopMessageText.setText(`You already own the ${style.name}. Equip it in Skins.`);
       return;
     }
-    if (this.totalPoints < style.unlockPoints) {
+    if (!this.infiniteLoot && this.totalPoints < style.unlockPoints) {
       this.shopMessageText.setText(`You need ${style.unlockPoints - this.totalPoints} more points for the ${style.name}.`);
       this.audio.playMiss();
       return;
     }
-    this.totalPoints -= style.unlockPoints;
+    if (!this.infiniteLoot) this.totalPoints -= style.unlockPoints;
     this.ownedShipStyles[index] = true;
     this.hasShipMode = true;
     this.unlockAchievement('ship-owner');
@@ -7204,7 +8136,7 @@ export class MainScene extends Phaser.Scene {
   private toggleDimeRush(): void {
     this.dimeRushMode = !this.dimeRushMode;
     this.settingsMessageText.setText(
-      this.dimeRushMode ? 'Dime Rush on: silver dimes appear more often next level.' : 'Dime Rush off: standard dime frequency restored.',
+      this.dimeRushMode ? 'Nickel Rush on: silver nickels appear more often next level.' : 'Nickel Rush off: standard nickel frequency restored.',
     );
     this.saveProgress();
     this.updateSettingsUi();
@@ -7213,7 +8145,7 @@ export class MainScene extends Phaser.Scene {
   private toggleScreenShake(): void {
     this.screenShakeMode = !this.screenShakeMode;
     this.settingsMessageText.setText(
-      this.screenShakeMode ? 'Screen Shake on: catches and dimes add a small camera bump.' : 'Screen Shake off: camera stays steady.',
+      this.screenShakeMode ? 'Screen Shake on: catches and nickels add a small camera bump.' : 'Screen Shake off: camera stays steady.',
     );
     this.saveProgress();
     this.updateSettingsUi();
@@ -7255,6 +8187,51 @@ export class MainScene extends Phaser.Scene {
     this.saveProgress();
     this.updateSettingsUi();
     this.updateMobileControlsVisibility();
+    this.applyMobileLayout();
+  }
+
+  private toggleFullscreen(): void {
+    if (typeof document === 'undefined') return;
+    if (document.fullscreenElement) {
+      void document.exitFullscreen?.();
+      return;
+    }
+    const target = document.documentElement;
+    if (target.requestFullscreen) {
+      void target.requestFullscreen().catch(() => {
+        this.settingsMessageText.setText('Fullscreen was blocked by the browser.');
+      });
+    } else {
+      this.settingsMessageText.setText('Fullscreen is not supported by this browser.');
+    }
+  }
+
+  private applyMobileLayout(): void {
+    if (typeof document !== 'undefined') {
+      document.documentElement.classList.toggle('mobile-landscape', this.mobileControlsEnabled);
+    }
+
+    const canvas = this.game.canvas;
+    if (canvas) {
+      canvas.style.touchAction = 'none';
+    }
+
+    const orientation = typeof screen !== 'undefined'
+      ? screen.orientation as ScreenOrientation & { lock?: (orientation: string) => Promise<void> }
+      : undefined;
+    if (this.mobileControlsEnabled && orientation?.lock) {
+      void orientation.lock('landscape').catch(() => undefined);
+    }
+    this.scale.refresh();
+  }
+
+  private applyResponsiveViewport(): void {
+    if (typeof window === 'undefined' || typeof document === 'undefined') return;
+    const width = Math.max(320, window.innerWidth);
+    const height = Math.max(240, window.innerHeight);
+    document.documentElement.style.setProperty('--viewport-width', `${width}px`);
+    document.documentElement.style.setProperty('--viewport-height', `${height}px`);
+    document.documentElement.classList.toggle('portrait-viewport', height > width);
   }
 
   private stopLiveMic(): void {
@@ -7275,6 +8252,8 @@ export class MainScene extends Phaser.Scene {
   }
 
   private updateMenuUi(): void {
+    this.adminMenuButton?.setVisible(this.isAdmin);
+    this.adminMenuText?.setVisible(this.isAdmin);
     this.menuPointsText.setText(`TOTAL POINTS: ${this.totalPoints}`);
     this.menuLoadoutText.setText(
       `Fish: ${this.currentFishStyle.name}  |  Basket: ${this.currentBasketStyle.name}  |  Bear: ${this.currentBearStyle.name}`,
@@ -7308,11 +8287,12 @@ export class MainScene extends Phaser.Scene {
     this.mirrorControlsText.setText(`MIRROR: ${this.mirrorControls ? 'ON' : 'OFF'}`);
     this.wideCatchText.setText(`WIDE CATCH: ${this.wideCatchMode ? 'ON' : 'OFF'}`);
     this.calmRainText.setText(`CALM RAIN: ${this.calmRainMode ? 'ON' : 'OFF'}`);
-    this.dimeRushText.setText(`DIME RUSH: ${this.dimeRushMode ? 'ON' : 'OFF'}`);
+    this.dimeRushText.setText(`NICKEL RUSH: ${this.dimeRushMode ? 'ON' : 'OFF'}`);
     this.screenShakeText.setText(`SHAKE: ${this.screenShakeMode ? 'ON' : 'OFF'}`);
     this.pauseBlurText.setText(`PAUSE BLUR: ${this.pauseOnBlur ? 'ON' : 'OFF'}`);
     this.liveModeText.setText(`LIVE MODE: ${this.liveMode ? 'ON' : 'OFF'}`);
     this.mobileModeText.setText(`MOBILE: ${this.mobileControlsEnabled ? 'ON' : 'OFF'}`);
+    this.fullscreenMenuText.setText(`FULLSCREEN: ${document.fullscreenElement ? 'ON' : 'OFF'}`);
     this.updateLiveMenuButton();
   }
 
@@ -7331,7 +8311,7 @@ export class MainScene extends Phaser.Scene {
 
   private showFloatingPoints(x: number, y: number, amount: number): void {
     const label = this.add.text(x, y, `+${amount}`, {
-      color: amount === DIME_POINTS ? '#e7eef6' : '#ffe38a',
+      color: amount === NICKEL_POINTS ? '#e7eef6' : '#ffe38a',
       fontFamily: 'Arial, sans-serif',
       fontSize: '18px',
       fontStyle: 'bold',
@@ -7345,6 +8325,17 @@ export class MainScene extends Phaser.Scene {
       duration: 700,
       ease: 'Cubic.easeOut',
       onComplete: () => label.destroy(),
+    });
+  }
+
+  private showRareFishUnlock(name: string): void {
+    const unlockText = this.add.text(WIDTH / 2, 150, `RARE FISH UNLOCKED!\n${name}`, {
+      align: 'center', color: '#9effcf', fontFamily: 'Arial, sans-serif', fontSize: '16px',
+      fontStyle: 'bold', stroke: '#102030', strokeThickness: 4,
+    }).setOrigin(0.5).setDepth(12);
+    this.tweens.add({
+      targets: unlockText, y: 115, alpha: 0, duration: 1500, ease: 'Cubic.easeOut',
+      onComplete: () => unlockText.destroy(),
     });
   }
 
@@ -7393,11 +8384,10 @@ export class MainScene extends Phaser.Scene {
     this.bearContainer.setVisible(false);
     this.hudContainer.setVisible(true);
     this.basket.setVisible(true);
-    this.messageText
-      .setText(
-        `${this.currentLevel.name} CLEARED!\n${bankedPoints} points banked\nTotal points: ${this.totalPoints}\n\nR: PLAY AGAIN   M: MENU`,
-      )
-      .setVisible(true);
+    this.showEndScreen(
+      'LEVEL CLEARED',
+      `${this.currentLevel.name}\n${bankedPoints} points banked\nTotal points: ${this.totalPoints}`,
+    );
   }
 
   private endGame(): void {
@@ -7411,11 +8401,17 @@ export class MainScene extends Phaser.Scene {
     this.bearContainer.setVisible(false);
     this.hudContainer.setVisible(true);
     this.basket.setVisible(true);
-    this.messageText
-      .setText(
-        `GAME OVER\n${penaltyApplied ? 'Baskets were lost; banked points are safe.' : 'Your baskets and points are safe here.'}\nTotal points: ${this.totalPoints}\n\nR: TRY AGAIN   M: MENU`,
-      )
-      .setVisible(true);
+    this.showEndScreen(
+      'GAME OVER',
+      `${penaltyApplied ? 'Baskets were lost; banked points are safe.' : 'Your baskets and points are safe here.'}\nTotal points: ${this.totalPoints}`,
+    );
+  }
+
+  private showEndScreen(title: string, details: string): void {
+    this.messageText.setVisible(false);
+    this.endScreenTitle.setText(title);
+    this.endScreenDetails.setText(details);
+    this.endScreenContainer.setVisible(true);
   }
 
   private applyFailurePenalty(): boolean {
@@ -7474,6 +8470,7 @@ export class MainScene extends Phaser.Scene {
       const passwordHash = window.localStorage.getItem('fish-rain-account-password-hash');
       const createdAt = Number(window.localStorage.getItem('fish-rain-account-created') ?? 0);
       const resets = Number(window.localStorage.getItem('fish-rain-resets-made') ?? 0);
+      this.accountSessionRemembered = window.localStorage.getItem('fish-rain-account-session') !== 'off';
       this.accountUsername = username ? this.normalizeAccountUsername(username) : '';
       this.accountPasswordHash = passwordHash && /^[a-f0-9]{64}$/.test(passwordHash) ? passwordHash : '';
       this.accountCreatedAt = Number.isFinite(createdAt) && createdAt > 0 ? Math.floor(createdAt) : 0;
@@ -7491,6 +8488,7 @@ export class MainScene extends Phaser.Scene {
       this.accountPasswordHash = '';
       this.accountCreatedAt = 0;
       this.resetsMade = 0;
+      this.accountSessionRemembered = false;
       this.localAccounts = [];
     }
   }
@@ -7512,6 +8510,13 @@ export class MainScene extends Phaser.Scene {
       const savedCompletedChallenges = window.localStorage.getItem('fish-rain-completed-challenges');
       const savedCustomChallenge = window.localStorage.getItem('fish-rain-custom-challenge');
       const savedAchievements = window.localStorage.getItem('fish-rain-achievements');
+      const savedRedeemedCodes = window.localStorage.getItem('fish-rain-redeemed-codes');
+      const savedBannedUsers = window.localStorage.getItem('fish-rain-banned-users');
+      this.redeemedCodes = this.readStringList(savedRedeemedCodes, 100);
+      this.bannedUsernames = this.readBannedUsers(savedBannedUsers);
+      this.isAdmin = window.localStorage.getItem('fish-rain-admin') === 'on';
+      this.infiniteLoot = window.localStorage.getItem('fish-rain-infinite-loot') === 'on';
+      this.audio.setShiawaseMenuMode(this.redeemedCodes.includes('TIDALWAVE'));
       const oldNetUpgrade = window.localStorage.getItem('fish-rain-net-upgrade') === 'owned';
       this.lowDetailMode = window.localStorage.getItem('fish-rain-low-detail') === 'on';
       this.threeDMode = window.localStorage.getItem('fish-rain-3d') === 'on';
@@ -7630,6 +8635,10 @@ export class MainScene extends Phaser.Scene {
       this.lifetimeDimes = 0;
       this.lifetimeVegCatches = 0;
       this.audio.setPhonkMode(false);
+      this.redeemedCodes = [];
+      this.bannedUsernames = [];
+      this.isAdmin = false;
+      this.infiniteLoot = false;
     }
   }
 
@@ -7750,6 +8759,32 @@ export class MainScene extends Phaser.Scene {
       .filter((value, index, values) => value.length > 0 && values.indexOf(value) === index);
   }
 
+  private readStringList(savedValue: string | null, maxLength: number): string[] {
+    if (!savedValue) return [];
+    const parsed = this.parseStoredJson(savedValue);
+    return Array.isArray(parsed)
+      ? parsed.filter((value): value is string => typeof value === 'string').slice(0, maxLength)
+      : [];
+  }
+
+  private readBannedUsers(savedValue: string | null): Array<{ username: string; expiresAt: number }> {
+    const parsed = this.parseStoredJson(savedValue);
+    if (!Array.isArray(parsed)) return [];
+    const now = Date.now();
+    return parsed
+      .map((entry) => {
+        if (typeof entry === 'string') return { username: this.normalizeAccountUsername(entry), expiresAt: now + BAN_DURATION_MS };
+        if (!entry || typeof entry !== 'object') return undefined;
+        const value = entry as { username?: unknown; expiresAt?: unknown };
+        return typeof value.username === 'string' && typeof value.expiresAt === 'number'
+          ? { username: this.normalizeAccountUsername(value.username), expiresAt: value.expiresAt }
+          : undefined;
+      })
+      .filter((entry): entry is { username: string; expiresAt: number } =>
+        entry !== undefined && entry.username.length > 0 && entry.expiresAt > now)
+      .slice(0, MAX_ACCOUNTS_PER_BROWSER);
+  }
+
   private readCompletedAchievements(savedValue: string | null): boolean[] {
     const completed = ACHIEVEMENTS.map(() => false);
     if (savedValue === null) {
@@ -7823,6 +8858,7 @@ export class MainScene extends Phaser.Scene {
         window.localStorage.setItem('fish-rain-account-created', String(this.accountCreatedAt));
       }
       window.localStorage.setItem('fish-rain-accounts', JSON.stringify(this.localAccounts.slice(0, MAX_ACCOUNTS_PER_BROWSER)));
+      window.localStorage.setItem('fish-rain-account-session', this.accountSessionRemembered ? 'on' : 'off');
       window.localStorage.setItem('fish-rain-resets-made', String(this.resetsMade));
       window.localStorage.setItem('fish-rain-following', JSON.stringify(this.followingUsernames));
       window.localStorage.setItem('fish-rain-friends', JSON.stringify(this.friendUsernames));
@@ -7846,6 +8882,10 @@ export class MainScene extends Phaser.Scene {
         window.localStorage.removeItem('fish-rain-custom-challenge');
       }
       window.localStorage.setItem('fish-rain-achievements', JSON.stringify(this.completedAchievements));
+      window.localStorage.setItem('fish-rain-redeemed-codes', JSON.stringify(this.redeemedCodes));
+      window.localStorage.setItem('fish-rain-banned-users', JSON.stringify(this.bannedUsernames));
+      window.localStorage.setItem('fish-rain-admin', this.isAdmin ? 'on' : 'off');
+      window.localStorage.setItem('fish-rain-infinite-loot', this.infiniteLoot ? 'on' : 'off');
       window.localStorage.setItem('fish-rain-creator-names', JSON.stringify(this.usedCreatorNames));
       window.localStorage.setItem('fish-rain-net-upgrade', this.hasNetUpgrade ? 'owned' : 'none');
       window.localStorage.setItem('fish-rain-ship-mode', this.hasShipMode ? 'owned' : 'none');

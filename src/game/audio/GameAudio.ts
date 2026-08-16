@@ -33,12 +33,23 @@ const MENU_TRACK: MusicTrack = {
   bassWave: 'sine',
 };
 
+// A bright, fast VIP-style menu preset for the TIDALWAVE code. It is generated
+// with the same oscillator system as the rest of the game.
+const SHIAWASE_VIP_TRACK: MusicTrack = {
+  notes: [392, 494, 587, 784, 988, 784, 587, 494, 440, 554, 659, 880, 1109, 880, 659, 554],
+  bass: [98, 123, 147, 185],
+  tempo: 180,
+  wave: 'square',
+  bassWave: 'triangle',
+};
+
 export class GameAudio {
   private context?: AudioContext;
   private musicInterval?: number;
   private musicStep = 0;
   private enabled = true;
   private phonkMode = false;
+  private shiawaseMenuMode = false;
   private currentBaseTrack?: MusicTrack;
 
   get isEnabled(): boolean {
@@ -71,7 +82,11 @@ export class GameAudio {
   }
 
   startMenuMusic(): void {
-    this.startTrack(MENU_TRACK);
+    this.startTrack(this.shiawaseMenuMode ? SHIAWASE_VIP_TRACK : MENU_TRACK);
+  }
+
+  setShiawaseMenuMode(enabled: boolean): void {
+    this.shiawaseMenuMode = enabled;
   }
 
   private startTrack(track: MusicTrack): void {
