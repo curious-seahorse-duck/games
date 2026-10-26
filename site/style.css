@@ -1,0 +1,41 @@
+:root { color-scheme: dark; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #090d18; color: #f3f5ff; }
+* { box-sizing: border-box; }
+body { margin: 0; background: radial-gradient(ellipse at 10% 36%, #13344255, transparent 45%), radial-gradient(ellipse at 93% 62%, #34225655, transparent 45%); }
+a { color: inherit; text-decoration: none; }
+.arcade { max-width: 1180px; margin: auto; padding: 0 40px; }
+header { min-height: 100px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #ffffff14; gap: 20px; }
+.brand { font-size: 15px; font-weight: 850; letter-spacing: 3px; display: flex; align-items: center; gap: 12px; }
+.brand-icon { color: #c8ffaf; font-size: 30px; }
+.edition, .eyebrow, .number, .art-label, footer { font-size: 11px; font-weight: 750; letter-spacing: 2px; }
+.edition { color: #b5bfd5; border: 1px solid #ffffff22; border-radius: 30px; padding: 10px 14px; }
+.intro { padding: 55px 0 35px; }
+.eyebrow { color: #b7f998; margin: 0 0 18px; }
+h1 { font-size: clamp(40px, 5.5vw, 70px); line-height: 1.06; letter-spacing: -3px; margin: 0 0 20px; }
+h1 span { color: #a2abc5; }
+.lead { font-size: 17px; color: #b5bfd5; line-height: 1.65; margin: 0; }
+.games { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 26px; }
+.game { --accent: #89e9e3; display: flex; flex-direction: column; border: 2px solid #02040a; border-radius: 22px; overflow: hidden; background: #111827; box-shadow: 0 0 0 1px #ffffff1a; transition: transform .2s, box-shadow .2s; }
+.game.alien { --accent: #c6b5ff; }
+.game:hover { transform: translateY(-6px); box-shadow: 0 0 0 1px var(--accent), 0 20px 45px #0006; }
+a:focus-visible { outline: 3px solid #fff4a0; outline-offset: 7px; }
+.art { position: relative; height: 240px; background: linear-gradient(145deg, #124864, #258f9d); overflow: hidden; }
+.alien .art { background: radial-gradient(ellipse at 50% 50%, #473282, #181a3e 75%); }
+.art svg { width: 100%; height: 100%; }
+.number { position: absolute; top: 20px; left: 22px; font-size: 10px; color: #fff; z-index: 1; }
+.art-label { position: absolute; bottom: 17px; left: 22px; color: #e3f8ff; font-size: 9px; }
+.fish-sprite { animation: bob 5s ease-in-out infinite; }
+.ufo-sprite { animation: bob 4s ease-in-out infinite reverse; }
+.game-info { padding: 27px; display: flex; flex-direction: column; flex: 1; }
+.tags { display: flex; flex-wrap: wrap; gap: 8px; color: var(--accent); font-size: 9px; font-weight: 800; letter-spacing: 1px; }
+.tags span { border: 1px solid #ffffff22; border-radius: 5px; padding: 5px 7px; }
+h2 { font-size: 30px; letter-spacing: -1px; margin: 16px 0 10px; }
+h2 span { font-size: 20px; color: #c1c7dc; white-space: nowrap; }
+.game-info p { margin: 0 0 26px; max-width: 390px; color: #b5bfd5; font-size: 15px; line-height: 1.7; }
+.play { display: flex; align-items: center; justify-content: space-between; margin-top: auto; padding: 14px 18px; border: 2px solid #02040a; border-radius: 10px; background: var(--accent); color: #121526; font-size: 14px; font-weight: 850; }
+.play span { font-size: 24px; line-height: 1; }
+.notice { margin-top: 26px; padding: 20px 24px; border: 1px solid #ffffff18; border-radius: 12px; color: #aeb9ce; font-size: 13px; line-height: 1.8; }
+.notice strong { color: #e3e9f7; margin-right: 6px; }
+footer { display: flex; justify-content: space-between; gap: 15px; padding: 34px 0; color: #8996b0; font-size: 9px; }
+@keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-9px); } }
+@media (max-width: 700px) { .arcade { padding: 0 22px; } header { min-height: 80px; } .brand { font-size: 12px; letter-spacing: 2px; } .edition { font-size: 8px; letter-spacing: 1px; padding: 8px; } .intro { padding-top: 38px; } h1 { letter-spacing: -2px; } .games { grid-template-columns: 1fr; } .art { height: 225px; } footer { letter-spacing: 1px; } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }

@@ -1,4 +1,44 @@
+# Dependencies (applies to both games)
 node_modules/
+.npm/
+
+# Generated builds, Pages output, and tool caches
 dist/
-.DS_Store
+/_site/
+.vite/
+.cache/
+coverage/
+*.tsbuildinfo
+
+# Local environment and credentials; keep example configuration shareable
+.env
+.env.*
+!.env.example
+!.env.*.example
+!.env.sample
+!.env.template
 *.local
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Logs and temporary files
+*.log
+*.log.*
+*.tmp
+*.temp
+
+# Local editor settings and recovery files
+.vscode/
+.idea/
+*.code-workspace
+*.swp
+*.swo
+*~
+
+# Operating system files
+.DS_Store
+._*
+Thumbs.db
+Desktop.ini

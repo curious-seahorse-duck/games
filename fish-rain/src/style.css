@@ -40,6 +40,26 @@ body {
   touch-action: none;
 }
 
+#game-container input {
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
+  line-height: 20px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#game-container input:focus {
+  outline: none;
+  filter: brightness(1.12);
+}
+
+#game-container input::placeholder {
+  color: rgba(213, 231, 245, 0.72);
+  opacity: 1;
+}
+
 html.fullscreen-game,
 html.fullscreen-game body,
 html.fullscreen-game #game-container {

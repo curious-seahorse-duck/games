@@ -1,0 +1,22 @@
+{
+  "name": "ufo-blaster-freeze-tag",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A spooky social-deduction freeze tag game built with Phaser 4, TypeScript, and Vite.",
+  "type": "module",
+  "scripts": {
+    "test": "node scripts/game.test.mjs",
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build && node scripts/build-site-server.mjs",
+    "build:pages": "tsc --noEmit && vite build --base ./",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "phaser": "4.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.21",
+    "typescript": "~5.7.2",
+    "vite": "^6.3.1"
+  }
+}

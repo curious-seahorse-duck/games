@@ -1,20 +1,13 @@
 {
-  "name": "phaser-four-starfish",
+  "name": "two-games-arcade",
   "version": "1.0.0",
   "private": true,
-  "description": "A fish-catching Phaser 4 game built with TypeScript and Vite.",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc --noEmit && vite build && node scripts/build-site-server.mjs",
-    "preview": "vite preview"
+    "build": "npm --prefix fish-rain run build:pages && npm --prefix freeze-tag run build:pages && node scripts/assemble-pages.mjs",
+    "test:pages": "node scripts/pages.test.mjs"
   },
-  "dependencies": {
-    "phaser": "4.0.0"
-  },
-  "devDependencies": {
-    "@types/node": "^22.15.21",
-    "typescript": "~5.7.2",
-    "vite": "^6.3.1"
+  "engines": {
+    "node": ">=22"
   }
 }

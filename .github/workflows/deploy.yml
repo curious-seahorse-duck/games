@@ -1,38 +1,57 @@
-name: Deploy game to GitHub Pages
+name: Build games and deploy GitHub Pages
 
 on:
   push:
+  pull_request:
     branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            fish-rain/package-lock.json
+            freeze-tag/package-lock.json
+
+      - name: Install Fish Rain dependencies
+        run: npm ci --prefix fish-rain
+      - name: Install Freeze Tag dependencies
+        run: npm ci --prefix freeze-tag
+      - name: Test Freeze Tag
+        run: npm test --prefix freeze-tag
+      - name: Test Pages packaging
+        run: npm run test:pages
+      - name: Build both games and the home page
+        run: npm run build
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: ./_site
+
+  deploy:
+    # Every branch is built; only main updates the public site.
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    concurrency:
+      group: github-pages
+      cancel-in-progress: false
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
-
     steps:
-      - uses: actions/checkout@v6
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-
-      - run: npm ci
-      - run: npm run build
-
       - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v4
-        with:
-          path: ./dist
-
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v4

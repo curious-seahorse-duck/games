@@ -81,6 +81,7 @@ type FishStyleConfig = {
   finColor: number;
   accentColor: number;
   pattern: FishPattern;
+  referenceTheme?: ReferenceTheme;
 };
 
 type BasketStyleConfig = {
@@ -92,6 +93,7 @@ type BasketStyleConfig = {
   handleColor: number;
   highlightColor: number;
   shadowColor: number;
+  referenceTheme?: ReferenceTheme;
 };
 
 type NetStyleConfig = {
@@ -101,6 +103,7 @@ type NetStyleConfig = {
   meshColor: number;
   handleColor: number;
   accentColor: number;
+  referenceTheme?: ReferenceTheme;
 };
 
 type BearStyleConfig = {
@@ -120,7 +123,20 @@ type ShipStyleConfig = {
   deckColor: number;
   sailColor: number;
   accentColor: number;
+  referenceTheme?: ReferenceTheme;
 };
+
+type ReferenceTheme =
+  | 'meme'
+  | 'pixel'
+  | 'plumber'
+  | 'space'
+  | 'block'
+  | 'mystery'
+  | 'stranger'
+  | 'dungeon'
+  | 'battle'
+  | 'retro';
 
 type AchievementConfig = {
   id: string;
@@ -1208,9 +1224,13 @@ const SHIP_STYLES: ShipStyleConfig[] = [
   { name: 'STAR GALLEON', unlockPoints: 1100, hullColor: 0x4a277f, deckColor: 0xa85bce, sailColor: 0xf0d5ff, accentColor: 0xffd36e },
 ];
 
-// The bonus vaults are generated from a compact palette so they remain real,
-// selectable styles without bloating the source with 150 copies of drawing data.
+// The bonus vaults are generated from compact palettes so they remain real,
+// selectable content without bloating the source with hundreds of copies of data.
 const BONUS_THEMES: ThemeName[] = ['coral', 'sunset', 'moon', 'frost', 'storm', 'aurora', 'cosmic', 'kelp', 'crystal', 'finale'];
+const BONUS_REFERENCE_THEMES: ReferenceTheme[] = [
+  'meme', 'pixel', 'plumber', 'space', 'block',
+  'mystery', 'stranger', 'dungeon', 'battle', 'retro',
+];
 const bonusColor = (index: number, channel: number): number => {
   const color = Phaser.Display.Color.HSLToColor(((index * 37 + channel * 71) % 360) / 360, 0.72, 0.54);
   return color.color;
@@ -1225,17 +1245,19 @@ const BONUS_GEAR_NAMES = {
 const bonusGearName = (kind: keyof typeof BONUS_GEAR_NAMES, index: number): string =>
   `${BONUS_GEAR_NAMES[kind][index % BONUS_GEAR_NAMES[kind].length]} ${Math.floor(index / BONUS_GEAR_NAMES[kind].length) + 1}`;
 
-LEVELS.push(...Array.from({ length: 50 }, (_, index) => {
-  const source = LEVELS[index % 16];
+const CURATED_MAIN_LEVEL_COUNT = LEVELS.length;
+const MAIN_BONUS_LEVEL_COUNT = 100;
+LEVELS.push(...Array.from({ length: MAIN_BONUS_LEVEL_COUNT }, (_, index) => {
+  const source = LEVELS[index % CURATED_MAIN_LEVEL_COUNT];
   const tier = index + 1;
   return {
     ...source,
     name: `BONUS HARBOR ${String(tier).padStart(2, '0')}`,
     difficulty: `BONUS · ${tier % 2 === 0 ? 'HARD' : 'EXTREME'}`,
     target: source.target + 6 + Math.floor(index / 5),
-    spawnDelay: Math.max(80, source.spawnDelay - 18),
-    minFallSpeed: source.minFallSpeed + 20,
-    maxFallSpeed: source.maxFallSpeed + 30,
+    spawnDelay: Math.max(75, source.spawnDelay - 18 - Math.floor(index / 20)),
+    minFallSpeed: source.minFallSpeed + 20 + Math.floor(index / 20) * 4,
+    maxFallSpeed: source.maxFallSpeed + 30 + Math.floor(index / 20) * 6,
     theme: BONUS_THEMES[index % BONUS_THEMES.length],
   };
 }));
@@ -1263,6 +1285,7 @@ FISH_STYLES.push(...Array.from({ length: 50 }, (_, index) => ({
   bodyColor: bonusColor(index, 0), bellyColor: bonusColor(index, 1),
   finColor: bonusColor(index, 2), accentColor: bonusColor(index, 3),
   pattern: ['scales', 'clown', 'tang', 'koi', 'neon', 'puffer', 'angel', 'galaxy'][index % 8] as FishPattern,
+  referenceTheme: BONUS_REFERENCE_THEMES[index % BONUS_REFERENCE_THEMES.length],
 })));
 const BONUS_BASKET_START_INDEX = BASKET_STYLES.length;
 BASKET_STYLES.push(...Array.from({ length: 50 }, (_, index) => ({
@@ -1271,6 +1294,7 @@ BASKET_STYLES.push(...Array.from({ length: 50 }, (_, index) => ({
   bodyColor: bonusColor(index, 0), rimColor: bonusColor(index, 1),
   weaveColor: bonusColor(index, 2), handleColor: bonusColor(index, 3),
   highlightColor: 0xfff4bc, shadowColor: 0x15233b,
+  referenceTheme: BONUS_REFERENCE_THEMES[index % BONUS_REFERENCE_THEMES.length],
 })));
 const BONUS_NET_START_INDEX = NET_STYLES.length;
 NET_STYLES.push(...Array.from({ length: 50 }, (_, index) => ({
@@ -1278,6 +1302,7 @@ NET_STYLES.push(...Array.from({ length: 50 }, (_, index) => ({
   unlockPoints: 999999,
   hoopColor: bonusColor(index, 0), meshColor: bonusColor(index, 1),
   handleColor: bonusColor(index, 2), accentColor: bonusColor(index, 3),
+  referenceTheme: BONUS_REFERENCE_THEMES[index % BONUS_REFERENCE_THEMES.length],
 })));
 const BONUS_SHIP_START_INDEX = SHIP_STYLES.length;
 SHIP_STYLES.push(...Array.from({ length: 50 }, (_, index) => ({
@@ -1285,6 +1310,7 @@ SHIP_STYLES.push(...Array.from({ length: 50 }, (_, index) => ({
   unlockPoints: 999999,
   hullColor: bonusColor(index, 0), deckColor: bonusColor(index, 1),
   sailColor: bonusColor(index, 2), accentColor: bonusColor(index, 3),
+  referenceTheme: BONUS_REFERENCE_THEMES[index % BONUS_REFERENCE_THEMES.length],
 })));
 
 const ACHIEVEMENTS: AchievementConfig[] = [
@@ -2065,6 +2091,13 @@ export class MainScene extends Phaser.Scene {
     input.placeholder = placeholder;
     input.autocomplete = 'off';
     input.spellcheck = false;
+    input.style.boxSizing = 'border-box';
+    input.style.minWidth = '0';
+    input.style.maxWidth = '100%';
+    input.style.lineHeight = '20px';
+    input.style.whiteSpace = 'nowrap';
+    input.style.overflow = 'hidden';
+    input.style.textOverflow = 'ellipsis';
     input.setAttribute('inputmode', 'text');
     // Keep Phaser's gameplay shortcuts from eating letters while a field is focused.
     input.addEventListener('keydown', (event) => event.stopPropagation());
@@ -2459,7 +2492,7 @@ export class MainScene extends Phaser.Scene {
       `SHIP-50-VAULT  ·  UNLOCK IN CODES  ·  ${this.ownedShipStyles.slice(-50).filter(Boolean).length}/50 owned`,
     ].join('\n');
     this.codeInventoryText.setText(`${codes}\n\nCODE-UNLOCKED GEAR\n${vaultUnlocks}\n\nREDEEMED: ${redeemed}\n\n${vaults.join('    ')}`);
-    this.adminLootText?.setText(`INFINITE LOOT: ${this.infiniteLoot ? 'ON' : 'OFF'}`);
+    this.adminLootText?.setText(`INFINITE LOOT: ${this.hasInfinitePoints() ? 'ON' : 'OFF'}`);
   }
 
   private setupLiveChannel(): void {
@@ -2735,7 +2768,7 @@ export class MainScene extends Phaser.Scene {
       stroke: '#102030',
       strokeThickness: 3,
     });
-    const subtitle = this.add.text(34, 57, 'Catch them in the basket', {
+    const subtitle = this.add.text(34, 57, 'Catch falling fish, then feed the bear before its hunger reaches zero', {
       color: '#d6e7f5',
       fontFamily: 'Arial, sans-serif',
       fontSize: '14px',
@@ -3211,7 +3244,7 @@ export class MainScene extends Phaser.Scene {
     searchInput.addEventListener('input', () => this.updateProfilesUi());
     this.profileListText = this.add.text(130, 145, '', {
       color: '#f0dcff', fontFamily: 'Arial, sans-serif', fontSize: '12px', lineSpacing: 9,
-      wordWrap: { width: 300 }, backgroundColor: '#2e2050', padding: { left: 16, right: 16, top: 14, bottom: 14 },
+      wordWrap: { width: 264 }, backgroundColor: '#2e2050', padding: { left: 16, right: 16, top: 14, bottom: 14 },
     }).setOrigin(0, 0).setFixedSize(300, 245);
     this.profileRowsContainer = this.add.container(130, 182);
     const profileMaskGraphics = this.add.graphics().fillStyle(0xffffff, 1).fillRect(130, 177, 300, 200).setVisible(false);
@@ -3219,7 +3252,7 @@ export class MainScene extends Phaser.Scene {
     this.ensureProfileRows(10);
     this.profileDetailsText = this.add.text(485, 150, '', {
       color: '#f8efff', fontFamily: 'Arial, sans-serif', fontSize: '13px', lineSpacing: 7,
-      wordWrap: { width: 340 }, stroke: '#130d22', strokeThickness: 2,
+      wordWrap: { width: 318 }, stroke: '#130d22', strokeThickness: 2,
     }).setOrigin(0, 0).setFixedSize(350, 230);
     this.profileStatusText = this.add.text(WIDTH / 2, 402, '', {
       align: 'center', color: '#ffd58a', fontFamily: 'Arial, sans-serif', fontSize: '11px',
@@ -3723,13 +3756,14 @@ export class MainScene extends Phaser.Scene {
 
     const instructions = this.add.text(
       480,
-      516,
-      'PLAY: MAIN LEVELS  |  1-9: quick start  |  S: Settings  |  P: Shop  |  H: Hitboxes',
+      510,
+      'HOW TO PLAY  |  <- / -> or A / D: move basket  |  Catch falling fish\nF: feed the bear  |  N: net  |  T: ship  |  Clear the target before misses run out',
       {
         align: 'center',
         color: '#bfd5e5',
         fontFamily: 'Arial, sans-serif',
         fontSize: '10px',
+        lineSpacing: 3,
         stroke: '#102030',
         strokeThickness: 3,
       },
@@ -3908,7 +3942,7 @@ export class MainScene extends Phaser.Scene {
       fontFamily: 'Arial, sans-serif',
       fontSize: '13px',
       lineSpacing: 8,
-      wordWrap: { width: 690 },
+      wordWrap: { width: 654 },
       backgroundColor: '#092337',
       padding: { left: 18, right: 18, top: 14, bottom: 14 },
     }).setOrigin(0.5, 0).setFixedSize(690, 170);
@@ -4105,7 +4139,7 @@ export class MainScene extends Phaser.Scene {
   }
 
   private updateAdminUi(): void {
-    this.adminLootText?.setText(`INFINITE LOOT: ${this.infiniteLoot ? 'ON' : 'OFF'}`);
+    this.adminLootText?.setText(`INFINITE LOOT: ${this.hasInfinitePoints() ? 'ON' : 'OFF'}`);
   }
 
   private createLiveMenu(): void {
@@ -4160,7 +4194,7 @@ export class MainScene extends Phaser.Scene {
       fontFamily: 'Arial, sans-serif',
       fontSize: '11px',
       lineSpacing: 6,
-      wordWrap: { width: 260 },
+      wordWrap: { width: 240 },
       backgroundColor: '#102f46',
       padding: { left: 10, right: 10, top: 10, bottom: 10 },
     }).setOrigin(0.5, 0).setFixedSize(260, 230);
@@ -5397,6 +5431,7 @@ export class MainScene extends Phaser.Scene {
 
   private checkAchievementMilestones(): void {
     const clearCount = this.completedLevels.filter((completed) => completed).length;
+    const hasInfinitePoints = this.hasInfinitePoints();
     if (this.lifetimeCatches >= 10) this.unlockAchievement('catch-10');
     if (this.lifetimeCatches >= 25) this.unlockAchievement('catch-25');
     if (this.lifetimeCatches >= 50) this.unlockAchievement('catch-50');
@@ -5408,13 +5443,13 @@ export class MainScene extends Phaser.Scene {
     if (this.lifetimeDimes >= 5) this.unlockAchievement('dime-5');
     if (this.lifetimeDimes >= 10) this.unlockAchievement('dime-10');
     if (this.lifetimeDimes >= 25) this.unlockAchievement('dime-25');
-    if (this.totalPoints >= 25) this.unlockAchievement('points-25');
-    if (this.totalPoints >= 100) this.unlockAchievement('points-100');
-    if (this.totalPoints >= 250) this.unlockAchievement('points-250');
-    if (this.totalPoints >= 500) this.unlockAchievement('points-500');
-    if (this.totalPoints >= 1000) this.unlockAchievement('points-1000');
-    if (this.totalPoints >= 2000) this.unlockAchievement('points-2000');
-    if (this.totalPoints >= 5000) this.unlockAchievement('points-5000');
+    if (hasInfinitePoints || this.totalPoints >= 25) this.unlockAchievement('points-25');
+    if (hasInfinitePoints || this.totalPoints >= 100) this.unlockAchievement('points-100');
+    if (hasInfinitePoints || this.totalPoints >= 250) this.unlockAchievement('points-250');
+    if (hasInfinitePoints || this.totalPoints >= 500) this.unlockAchievement('points-500');
+    if (hasInfinitePoints || this.totalPoints >= 1000) this.unlockAchievement('points-1000');
+    if (hasInfinitePoints || this.totalPoints >= 2000) this.unlockAchievement('points-2000');
+    if (hasInfinitePoints || this.totalPoints >= 5000) this.unlockAchievement('points-5000');
     if (clearCount >= 2) this.unlockAchievement('two-clears');
     if (clearCount >= 8) this.unlockAchievement('eight-clears');
     if (clearCount >= 12) this.unlockAchievement('twelve-clears');
@@ -5555,7 +5590,7 @@ export class MainScene extends Phaser.Scene {
     if (!this.bearShopMessage) {
       return;
     }
-    this.bearShopMessage.setText(`TOTAL POINTS: ${this.totalPoints}  |  Click a bear to buy or equip it.`);
+    this.bearShopMessage.setText(`TOTAL POINTS: ${this.pointsLabel()}  |  Click a bear to buy or equip it.`);
     this.bearShopButtons.forEach((button, index) => {
       const style = BEAR_STYLES[index];
       const owned = this.ownedBearStyles[index];
@@ -5573,12 +5608,12 @@ export class MainScene extends Phaser.Scene {
     }
     const style = BEAR_STYLES[index];
     if (!this.ownedBearStyles[index]) {
-      if (this.totalPoints < style.unlockPoints) {
+      if (!this.hasInfinitePoints() && this.totalPoints < style.unlockPoints) {
         this.bearShopMessage.setText(`You need ${style.unlockPoints - this.totalPoints} more points for ${style.name}.`);
         this.audio.playMiss();
         return;
       }
-      this.totalPoints -= style.unlockPoints;
+      if (!this.hasInfinitePoints()) this.totalPoints -= style.unlockPoints;
       this.ownedBearStyles[index] = true;
       this.unlockAchievement('bear-owner');
     }
@@ -6009,12 +6044,273 @@ export class MainScene extends Phaser.Scene {
     return container;
   }
 
+  private drawReferenceBasket(
+    target: Phaser.GameObjects.Graphics,
+    style: BasketStyleConfig,
+    compact = false,
+  ): void {
+    const scale = compact ? 0.27 : 1;
+    const x = (value: number) => value * scale;
+    const width = (value: number) => Math.max(1, value * scale);
+    const theme = style.referenceTheme;
+    const body = style.bodyColor;
+    const accent = style.highlightColor;
+
+    target.clear();
+    target.lineStyle(width(3), accent, 1);
+    switch (theme) {
+      case 'pixel':
+        target.fillStyle(body, 1).fillRect(x(-58), x(-18), x(116), x(42));
+        target.lineStyle(width(3), style.weaveColor, 1).strokeRect(x(-58), x(-18), x(116), x(42));
+        target.fillStyle(style.rimColor, 1).fillRect(x(-62), x(-24), x(124), x(8));
+        target.fillStyle(style.handleColor, 1).fillRect(x(-8), x(-34), x(16), x(10));
+        target.fillStyle(style.weaveColor, 1).fillRect(x(-43), x(-7), x(86), x(6));
+        target.fillStyle(style.weaveColor, 1).fillRect(x(-43), x(6), x(86), x(6));
+        break;
+      case 'plumber':
+        target.fillStyle(body, 1).fillPoints([
+          new Phaser.Math.Vector2(x(-58), x(-16)), new Phaser.Math.Vector2(x(58), x(-16)),
+          new Phaser.Math.Vector2(x(45), x(24)), new Phaser.Math.Vector2(x(-45), x(24)),
+        ], true);
+        target.fillStyle(0xd92f35, 1).fillRect(x(-64), x(-25), x(128), x(9));
+        target.fillStyle(0x2fa34a, 1).fillRect(x(-9), x(-39), x(18), x(15));
+        target.fillStyle(0xffe08a, 1).fillCircle(x(0), x(-45), x(5));
+        target.lineStyle(width(3), accent, 1).strokePoints([
+          new Phaser.Math.Vector2(x(-58), x(-16)), new Phaser.Math.Vector2(x(58), x(-16)),
+          new Phaser.Math.Vector2(x(45), x(24)), new Phaser.Math.Vector2(x(-45), x(24)),
+        ], true);
+        break;
+      case 'space':
+        target.fillStyle(0x172b59, 1).fillPoints([
+          new Phaser.Math.Vector2(x(-58), x(-15)), new Phaser.Math.Vector2(x(58), x(-15)),
+          new Phaser.Math.Vector2(x(43), x(23)), new Phaser.Math.Vector2(x(-43), x(23)),
+        ], true);
+        target.fillStyle(0x63e9ff, 1).fillRect(x(-63), x(-24), x(126), x(8));
+        target.fillStyle(0xf4f7ff, 1).fillCircle(x(-25), x(3), x(4));
+        target.fillStyle(0xf4f7ff, 1).fillCircle(x(25), x(3), x(4));
+        target.lineStyle(width(3), 0x8df4ff, 1).strokePoints([
+          new Phaser.Math.Vector2(x(-58), x(-15)), new Phaser.Math.Vector2(x(58), x(-15)),
+          new Phaser.Math.Vector2(x(43), x(23)), new Phaser.Math.Vector2(x(-43), x(23)),
+        ], true);
+        break;
+      case 'mystery':
+        target.fillStyle(0xf07d31, 1).fillPoints([
+          new Phaser.Math.Vector2(x(-58), x(-15)), new Phaser.Math.Vector2(x(58), x(-15)),
+          new Phaser.Math.Vector2(x(45), x(24)), new Phaser.Math.Vector2(x(-45), x(24)),
+        ], true);
+        target.fillStyle(0x3a8fca, 1).fillRect(x(-52), x(-8), x(104), x(8));
+        target.fillStyle(0xf7c64b, 1).fillCircle(x(-28), x(8), x(5));
+        target.fillStyle(0xf7c64b, 1).fillCircle(x(28), x(8), x(5));
+        target.lineStyle(width(3), 0x4c2f26, 1).strokePoints([
+          new Phaser.Math.Vector2(x(-58), x(-15)), new Phaser.Math.Vector2(x(58), x(-15)),
+          new Phaser.Math.Vector2(x(45), x(24)), new Phaser.Math.Vector2(x(-45), x(24)),
+        ], true);
+        break;
+      case 'stranger':
+        target.fillStyle(0x1b1a27, 1).fillPoints([
+          new Phaser.Math.Vector2(x(-58), x(-15)), new Phaser.Math.Vector2(x(58), x(-15)),
+          new Phaser.Math.Vector2(x(45), x(24)), new Phaser.Math.Vector2(x(-45), x(24)),
+        ], true);
+        target.fillStyle(0xb8324a, 1).fillRect(x(-62), x(-24), x(124), x(8));
+        target.lineStyle(width(2), 0xff5b66, 1);
+        for (let light = -45; light <= 45; light += 15) target.fillCircle(x(light), x(5), x(2.5));
+        target.lineStyle(width(3), 0xd74459, 1).strokePoints([
+          new Phaser.Math.Vector2(x(-58), x(-15)), new Phaser.Math.Vector2(x(58), x(-15)),
+          new Phaser.Math.Vector2(x(45), x(24)), new Phaser.Math.Vector2(x(-45), x(24)),
+        ], true);
+        break;
+      case 'dungeon':
+        target.fillStyle(0x313746, 1).fillPoints([
+          new Phaser.Math.Vector2(x(-58), x(-15)), new Phaser.Math.Vector2(x(58), x(-15)),
+          new Phaser.Math.Vector2(x(45), x(24)), new Phaser.Math.Vector2(x(-45), x(24)),
+        ], true);
+        target.lineStyle(width(4), 0xd4a84f, 1).strokeRect(x(-61), x(-23), x(122), x(9));
+        target.fillStyle(0xd4a84f, 1).fillCircle(x(0), x(2), x(7));
+        target.fillStyle(0x313746, 1).fillCircle(x(-3), x(0), x(1.5));
+        target.fillStyle(0x313746, 1).fillCircle(x(3), x(0), x(1.5));
+        break;
+      case 'battle':
+        target.fillStyle(0x596b3d, 1).fillPoints([
+          new Phaser.Math.Vector2(x(-58), x(-15)), new Phaser.Math.Vector2(x(58), x(-15)),
+          new Phaser.Math.Vector2(x(45), x(24)), new Phaser.Math.Vector2(x(-45), x(24)),
+        ], true);
+        target.fillStyle(0x303b2d, 1).fillRect(x(-49), x(-8), x(23), x(9));
+        target.fillStyle(0x9b8c4c, 1).fillRect(x(8), x(5), x(31), x(8));
+        target.lineStyle(width(3), 0xc7b969, 1).strokePoints([
+          new Phaser.Math.Vector2(x(-58), x(-15)), new Phaser.Math.Vector2(x(58), x(-15)),
+          new Phaser.Math.Vector2(x(45), x(24)), new Phaser.Math.Vector2(x(-45), x(24)),
+        ], true);
+        break;
+      case 'retro':
+        target.fillStyle(0x211e54, 1).fillRect(x(-58), x(-16), x(116), x(40));
+        target.lineStyle(width(3), 0xff4fd8, 1).strokeRect(x(-58), x(-16), x(116), x(40));
+        target.fillStyle(0x4deaff, 1).fillRect(x(-58), x(-7), x(116), x(5));
+        target.fillStyle(0xffe66d, 1).fillRect(x(-43), x(7), x(86), x(5));
+        target.fillStyle(0xff4fd8, 1).fillRect(x(-7), x(-31), x(14), x(15));
+        break;
+      default:
+        target.fillStyle(body, 1).fillPoints([
+          new Phaser.Math.Vector2(x(-61), x(-20)), new Phaser.Math.Vector2(x(61), x(-20)),
+          new Phaser.Math.Vector2(x(49), x(24)), new Phaser.Math.Vector2(x(-49), x(24)),
+        ], true);
+        target.lineStyle(width(3), accent, 1).strokePoints([
+          new Phaser.Math.Vector2(x(-61), x(-20)), new Phaser.Math.Vector2(x(61), x(-20)),
+          new Phaser.Math.Vector2(x(49), x(24)), new Phaser.Math.Vector2(x(-49), x(24)),
+        ], true);
+    }
+  }
+
+  private drawReferenceNet(
+    target: Phaser.GameObjects.Graphics,
+    style: NetStyleConfig,
+    compact = false,
+  ): void {
+    const scale = compact ? 0.22 : 1;
+    const x = (value: number) => value * scale;
+    const width = (value: number) => Math.max(1, value * scale);
+    const centerY = compact ? -3 : -18;
+    const radius = compact ? 12 : 59;
+    const theme = style.referenceTheme;
+
+    target.clear();
+    if (theme === 'pixel' || theme === 'retro' || theme === 'block') {
+      target.lineStyle(width(theme === 'retro' ? 5 : 7), style.hoopColor, 1)
+        .strokeRect(x(-radius), x(centerY - radius), x(radius * 2), x(radius * 2));
+    } else {
+      target.lineStyle(width(7), style.hoopColor, 1).strokeCircle(0, x(centerY), x(radius));
+    }
+    target.lineStyle(width(theme === 'space' ? 3 : 2), style.meshColor, 0.95);
+    for (let meshX = -50; meshX <= 50; meshX += theme === 'pixel' ? 20 : 16) {
+      target.lineBetween(x(meshX), x(centerY - 28), x(meshX * 0.78), x(centerY + 26));
+    }
+    for (let meshY = -34; meshY <= 0; meshY += theme === 'retro' ? 9 : 13) {
+      target.lineBetween(x(-48), x(centerY + meshY + 18), x(48), x(centerY + meshY + 21));
+    }
+    target.lineStyle(width(5), style.handleColor, 1).lineBetween(x(-2), x(centerY - 56), x(-2), x(centerY - 7));
+    target.fillStyle(style.accentColor, 1).fillCircle(x(-2), x(centerY - 60), x(theme === 'dungeon' ? 7 : 5));
+    if (theme === 'plumber') {
+      target.lineStyle(width(7), 0xd92f35, 1).lineBetween(x(-2), x(centerY - 61), x(-2), x(centerY - 71));
+      target.lineStyle(width(7), 0x2fa34a, 1).lineBetween(x(-2), x(centerY - 71), x(8), x(centerY - 71));
+    } else if (theme === 'space') {
+      target.lineStyle(width(3), 0x8df4ff, 1).lineBetween(x(-radius), x(centerY), x(radius), x(centerY));
+    } else if (theme === 'dungeon') {
+      target.fillStyle(0xd4a84f, 1).fillTriangle(x(-radius), x(centerY - radius), x(-radius - 7), x(centerY - radius - 8), x(-radius + 3), x(centerY - radius + 5));
+      target.fillTriangle(x(radius), x(centerY - radius), x(radius + 7), x(centerY - radius - 8), x(radius - 3), x(centerY - radius + 5));
+    }
+  }
+
+  private drawReferenceShip(
+    target: Phaser.GameObjects.Graphics,
+    style: ShipStyleConfig,
+    compact = false,
+  ): void {
+    const scale = compact ? 0.24 : 1;
+    const x = (value: number) => value * scale;
+    const width = (value: number) => Math.max(1, value * scale);
+    const theme = style.referenceTheme;
+    const hull = style.hullColor;
+
+    target.clear();
+    if (theme === 'pixel' || theme === 'retro') {
+      target.fillStyle(hull, 1).fillRect(x(-92), x(-12), x(160), x(30));
+      target.lineStyle(width(3), style.accentColor, 1).strokeRect(x(-92), x(-12), x(160), x(30));
+    } else if (theme === 'space') {
+      target.fillStyle(0x172b59, 1).fillTriangle(x(-92), x(-12), x(92), x(-12), x(68), x(19));
+      target.fillStyle(0x63e9ff, 1).fillRect(x(-72), x(-21), x(126), x(8));
+      target.fillStyle(0xf4f7ff, 1).fillCircle(x(-55), x(7), x(5));
+      target.fillStyle(0xf4f7ff, 1).fillCircle(x(51), x(7), x(5));
+    } else if (theme === 'mystery') {
+      target.fillStyle(0xf07d31, 1).fillPoints([
+        new Phaser.Math.Vector2(x(-92), x(-12)), new Phaser.Math.Vector2(x(92), x(-12)),
+        new Phaser.Math.Vector2(x(68), x(19)), new Phaser.Math.Vector2(x(-68), x(19)),
+      ], true);
+      target.fillStyle(0x3a8fca, 1).fillRect(x(-65), x(-9), x(120), x(8));
+      target.fillStyle(0xf7c64b, 1).fillCircle(x(-43), x(8), x(6));
+      target.fillStyle(0xf7c64b, 1).fillCircle(x(42), x(8), x(6));
+    } else if (theme === 'dungeon') {
+      target.fillStyle(0x313746, 1).fillTriangle(x(-92), x(-12), x(92), x(-12), x(68), x(19));
+      target.lineStyle(width(5), 0xd4a84f, 1).strokeTriangle(x(-92), x(-12), x(92), x(-12), x(68), x(19));
+      target.fillStyle(0xd4a84f, 1).fillRect(x(-65), x(-21), x(115), x(10));
+      target.fillStyle(0x313746, 1).fillCircle(0, x(-3), x(8));
+    } else {
+      target.fillStyle(hull, 1).fillTriangle(x(-92), x(-12), x(92), x(-12), x(68), x(19));
+      target.lineStyle(width(3), style.accentColor, 1).strokeTriangle(x(-92), x(-12), x(92), x(-12), x(68), x(19));
+      target.fillStyle(style.deckColor, 1).fillRect(x(-65), x(-21), x(115), x(10));
+    }
+
+    target.lineStyle(width(theme === 'retro' ? 7 : 5), style.accentColor, 1)
+      .lineBetween(0, x(-22), 0, x(-86));
+    if (theme === 'pixel' || theme === 'block' || theme === 'retro') {
+      target.fillStyle(style.sailColor, 1).fillRect(x(4), x(-81), x(48), x(43));
+    } else if (theme === 'plumber') {
+      target.fillStyle(0xd92f35, 1).fillTriangle(x(4), x(-81), x(4), x(-30), x(57), x(-34));
+      target.fillStyle(0x2fa34a, 1).fillTriangle(x(-4), x(-76), x(-4), x(-38), x(-39), x(-40));
+      target.fillStyle(0xffe08a, 1).fillCircle(x(0), x(-90), x(6));
+    } else if (theme === 'battle') {
+      target.fillStyle(0x596b3d, 1).fillTriangle(x(4), x(-81), x(4), x(-30), x(57), x(-34));
+      target.fillStyle(0x303b2d, 1).fillTriangle(x(-4), x(-76), x(-4), x(-38), x(-39), x(-40));
+    } else if (theme === 'stranger') {
+      target.fillStyle(0x6f243c, 1).fillTriangle(x(4), x(-81), x(4), x(-30), x(57), x(-34));
+      target.fillStyle(0x221a2e, 1).fillTriangle(x(-4), x(-76), x(-4), x(-38), x(-39), x(-40));
+    } else {
+      target.fillStyle(style.sailColor, 0.95).fillTriangle(x(4), x(-81), x(4), x(-30), x(57), x(-34));
+      target.fillStyle(style.sailColor, 0.95).fillTriangle(x(-4), x(-76), x(-4), x(-38), x(-39), x(-40));
+    }
+    target.fillStyle(style.accentColor, 1).fillCircle(0, x(-90), x(theme === 'meme' ? 8 : 5));
+    if (theme === 'retro') {
+      target.fillStyle(0x4deaff, 1).fillRect(x(-70), x(7), x(20), x(5));
+      target.fillStyle(0xff4fd8, 1).fillRect(x(30), x(7), x(20), x(5));
+    }
+  }
+
+  private addReferenceFishDetails(
+    parts: Phaser.GameObjects.GameObject[],
+    style: FishStyleConfig,
+  ): void {
+    switch (style.referenceTheme) {
+      case 'meme':
+        parts.push(this.add.rectangle(1, -10, 24, 4, 0x15151b), this.add.circle(-8, -8, 4, 0xffffff), this.add.circle(8, -8, 4, 0xffffff));
+        break;
+      case 'pixel':
+        parts.push(...[-16, -8, 0, 8, 16].map((x) => this.add.rectangle(x, x % 2 === 0 ? -5 : 5, 6, 6, style.accentColor)));
+        break;
+      case 'plumber':
+        parts.push(this.add.rectangle(0, -15, 28, 7, 0xd92f35), this.add.circle(-7, -15, 4, 0xffe08a), this.add.circle(7, -15, 4, 0xffe08a));
+        break;
+      case 'space':
+        parts.push(this.add.circle(-7, -6, 3, 0x8df4ff), this.add.circle(7, -6, 3, 0x8df4ff), this.add.rectangle(-2, -16, 4, 8, 0x8df4ff));
+        break;
+      case 'block':
+        parts.push(...[-15, -5, 5, 15].map((x) => this.add.rectangle(x, x % 2 === 0 ? -6 : 5, 8, 8, style.accentColor)));
+        break;
+      case 'mystery':
+        parts.push(this.add.rectangle(-2, -2, 28, 6, 0x3a8fca), this.add.circle(-11, 7, 4, 0xf7c64b), this.add.circle(10, 7, 4, 0xf7c64b));
+        break;
+      case 'stranger':
+        parts.push(this.add.rectangle(0, 8, 32, 3, 0xff5b66), this.add.circle(-12, -8, 3, 0xd74459), this.add.circle(1, -11, 3, 0xd74459));
+        break;
+      case 'dungeon':
+        parts.push(this.add.triangle(0, -17, 0, 10, 5, 0, 10, 10, 0xd4a84f), this.add.circle(-7, 5, 2, 0xd4a84f), this.add.circle(7, 5, 2, 0xd4a84f));
+        break;
+      case 'battle':
+        parts.push(this.add.rectangle(-3, -2, 34, 5, 0x303b2d), this.add.rectangle(10, 7, 12, 4, 0xc7b969));
+        break;
+      case 'retro':
+        parts.push(this.add.rectangle(-1, -7, 34, 4, 0x4deaff), this.add.rectangle(4, 4, 27, 3, 0xff4fd8), this.add.rectangle(-12, 9, 6, 6, 0xffe66d));
+        break;
+    }
+  }
+
   private createBasketPreview(
     style: BasketStyleConfig,
     x: number,
     y: number,
   ): Phaser.GameObjects.Graphics {
     const preview = this.add.graphics();
+    if (style.referenceTheme) {
+      this.drawReferenceBasket(preview, style, true);
+      return preview.setPosition(x, y);
+    }
     preview.lineStyle(3, style.handleColor, 1);
     preview.strokeCircle(0, -3, 11);
     preview.fillStyle(style.bodyColor, 1);
@@ -6038,6 +6334,10 @@ export class MainScene extends Phaser.Scene {
     y: number,
   ): Phaser.GameObjects.Graphics {
     const preview = this.add.graphics();
+    if (style.referenceTheme) {
+      this.drawReferenceNet(preview, style, true);
+      return preview.setPosition(x, y);
+    }
     preview.lineStyle(3, style.hoopColor, 1);
     preview.strokeCircle(0, -3, 12);
     preview.lineStyle(1.5, style.meshColor, 0.95);
@@ -6057,6 +6357,10 @@ export class MainScene extends Phaser.Scene {
     y: number,
   ): Phaser.GameObjects.Graphics {
     const preview = this.add.graphics();
+    if (style.referenceTheme) {
+      this.drawReferenceShip(preview, style, true);
+      return preview.setPosition(x, y);
+    }
     preview.fillStyle(style.hullColor, 1);
     preview.fillTriangle(-22, 2, 22, 2, 16, 10);
     preview.lineStyle(2, style.accentColor, 1);
@@ -6094,6 +6398,11 @@ export class MainScene extends Phaser.Scene {
       this.basketRim.setVisible(false);
       this.netGraphics.setVisible(false);
       this.shipGraphics.setVisible(true);
+      if (shipStyle.referenceTheme) {
+        this.drawReferenceShip(this.shipGraphics, shipStyle);
+        this.basketHitbox.setVisible(this.showHitboxes);
+        return;
+      }
       this.shipGraphics.fillStyle(shipStyle.hullColor, 1);
       this.shipGraphics.fillTriangle(-92, -12, 92, -12, 68, 19);
       this.shipGraphics.lineStyle(3, shipStyle.accentColor, 1);
@@ -6118,6 +6427,10 @@ export class MainScene extends Phaser.Scene {
       this.basketRim.setVisible(false);
       this.netGraphics.setVisible(true);
       this.shipGraphics.setVisible(false);
+      if (netStyle.referenceTheme) {
+        this.drawReferenceNet(this.netGraphics, netStyle);
+        return;
+      }
       this.netGraphics.lineStyle(7, netStyle.hoopColor, 1);
       this.netGraphics.strokeCircle(0, -18, 59);
       this.netGraphics.lineStyle(2, netStyle.meshColor, 0.95);
@@ -6141,6 +6454,14 @@ export class MainScene extends Phaser.Scene {
     this.basketWeaveGraphics.setVisible(true);
     this.basketRimShadow.setVisible(true);
     this.basketRim.setVisible(true);
+    if (style.referenceTheme) {
+      this.basketHandleGraphics.setVisible(false);
+      this.basketWeaveGraphics.setVisible(false);
+      this.basketRimShadow.setVisible(false);
+      this.basketRim.setVisible(false);
+      this.drawReferenceBasket(this.basketBodyGraphics, style);
+      return;
+    }
     this.basketHandleGraphics.clear();
     this.basketHandleGraphics.lineStyle(6, style.handleColor, 1);
     this.basketHandleGraphics.strokeCircle(0, -25, 43);
@@ -6227,6 +6548,10 @@ export class MainScene extends Phaser.Scene {
         this.add.circle(10, -2, 2, 0xffffff, 0.9),
         this.add.rectangle(0, 2, 35, 2, style.accentColor, 0.8),
       );
+    }
+
+    if (style.referenceTheme) {
+      this.addReferenceFishDetails(parts, style);
     }
 
     const topFin = this.add.triangle(-3, -11, 0, 11, 8, 0, 17, 11, style.finColor);
@@ -6854,7 +7179,7 @@ export class MainScene extends Phaser.Scene {
     const joined = this.accountCreatedAt > 0 ? new Date(this.accountCreatedAt).toLocaleDateString() : 'unknown';
     this.statsText.setText(
       `ACCOUNT: ${this.accountUsername}\nJOINED: ${joined}\n\n`
-      + `TOTAL POINTS: ${this.totalPoints}\nFISH CAUGHT: ${this.lifetimeCatches}\nFISH FED: ${this.lifetimeFeeds}\nNICKELS CAUGHT: ${this.lifetimeDimes}\n\n`
+      + `TOTAL POINTS: ${this.pointsLabel()}\nFISH CAUGHT: ${this.lifetimeCatches}\nFISH FED: ${this.lifetimeFeeds}\nNICKELS CAUGHT: ${this.lifetimeDimes}\n\n`
       + `MAIN LEVELS CLEARED: ${mainClears}/${LEVELS.length}\nCHALLENGES CLEARED: ${challengeClears}/${this.completedChallengeLevels.length}\nACHIEVEMENTS: ${this.completedAchievements.filter(Boolean).length}/${ACHIEVEMENTS.length}\nRESETS MADE: ${this.resetsMade}`,
     );
   }
@@ -6974,7 +7299,7 @@ export class MainScene extends Phaser.Scene {
     return {
       username: this.accountUsername,
       createdAt: this.accountCreatedAt,
-      totalPoints: this.totalPoints,
+      totalPoints: this.hasInfinitePoints() ? Number.MAX_SAFE_INTEGER : this.totalPoints,
       lifetimeCatches: this.lifetimeCatches,
       lifetimeFeeds: this.lifetimeFeeds,
       lifetimeDimes: this.lifetimeDimes,
@@ -7080,10 +7405,6 @@ export class MainScene extends Phaser.Scene {
   }
 
   private showProfiles(): void {
-    if (!this.accountSignedIn) {
-      this.showAccount('profiles');
-      return;
-    }
     this.stopTimers();
     this.clearFish();
     this.clearDimes();
@@ -7115,6 +7436,12 @@ export class MainScene extends Phaser.Scene {
     this.profileSearchInput.setVisible(true);
     this.profileScrollY = 0;
     this.profileRowsContainer.setY(182);
+    // Rebuild the local directory whenever it opens so every account created
+    // in this browser is available, even if it was created after startup.
+    this.publishKnownLocalAccounts();
+    if (this.accountSignedIn) {
+      this.publishOwnProfile();
+    }
     this.profileChannel?.postMessage({ kind: 'request-profiles', from: this.accountUsername } satisfies ProfilePacket);
     void this.loadRemoteProfiles();
     this.updateProfilesUi();
@@ -7138,8 +7465,8 @@ export class MainScene extends Phaser.Scene {
     }
     const selected = this.publicProfiles.get(this.selectedProfileUsername);
     this.profileListText.setText(profiles.length === 0
-      ? 'NO PROFILES FOUND\n\nOpen another copy of the game after creating an account to discover it here.'
-      : 'KNOWN ACCOUNTS\n\n');
+      ? 'NO PROFILES FOUND\n\nCreate an account to add the first profile.'
+      : `ALL PROFILES  (${profiles.length})\n\n`);
     this.profileNameRows.forEach((row, index) => {
       const profile = profiles[index];
       row.setVisible(Boolean(profile));
@@ -7167,11 +7494,12 @@ export class MainScene extends Phaser.Scene {
       return;
     }
     const isSelf = selected.username === this.accountUsername;
+    const selectedPoints = isSelf && this.hasInfinitePoints() ? '∞' : String(Math.floor(selected.totalPoints));
     const following = selected.following.length > 0 ? selected.following.join(', ') : 'none';
     const friends = selected.friends.length > 0 ? selected.friends.join(', ') : 'none';
     this.profileDetailsText.setText(
       `${selected.username}${isSelf ? '  (YOU)' : ''}\n\n`
-      + `POINTS: ${Math.floor(selected.totalPoints)}\nFISH CAUGHT: ${Math.floor(selected.lifetimeCatches)}\nFISH FED: ${Math.floor(selected.lifetimeFeeds)}\nNICKELS: ${Math.floor(selected.lifetimeDimes)}\n`
+      + `POINTS: ${selectedPoints}\nFISH CAUGHT: ${Math.floor(selected.lifetimeCatches)}\nFISH FED: ${Math.floor(selected.lifetimeFeeds)}\nNICKELS: ${Math.floor(selected.lifetimeDimes)}\n`
       + `MAIN CLEARS: ${Math.floor(selected.mainClears)}\nCHALLENGE CLEARS: ${Math.floor(selected.challengeClears)}\nACHIEVEMENTS: ${Math.floor(selected.achievementCount)}\nFOLLOWERS: ${Math.floor(selected.followers)}\n\n`
       + `EQUIPPED SKINS\nFish: ${selected.fishStyle}\nBasket: ${selected.basketStyle}\nNet: ${selected.netStyle}\nBear: ${selected.bearStyle}\nShip: ${selected.shipStyle}\n\n`
       + `FOLLOWING: ${following}\nFRIENDS: ${friends}`,
@@ -7206,6 +7534,10 @@ export class MainScene extends Phaser.Scene {
   }
 
   private toggleFollowSelectedProfile(): void {
+    if (!this.accountSignedIn) {
+      this.profileStatusText.setText('Sign in to follow profiles.');
+      return;
+    }
     const username = this.selectedProfileUsername;
     if (!username || username === this.accountUsername) return;
     const profile = this.publicProfiles.get(username);
@@ -7224,6 +7556,10 @@ export class MainScene extends Phaser.Scene {
   }
 
   private sendFriendRequestToSelectedProfile(): void {
+    if (!this.accountSignedIn) {
+      this.profileStatusText.setText('Sign in to add friends.');
+      return;
+    }
     const username = this.selectedProfileUsername;
     if (!username || username === this.accountUsername) return;
     if (!this.friendUsernames.includes(username)) {
@@ -7693,7 +8029,7 @@ export class MainScene extends Phaser.Scene {
     this.feedHungerText.setText(`HUNGER  ${Math.ceil(this.hunger)}%`);
     this.feedStockText.setText(`${this.foodName} IN BASKET: ${this.fishStock}`);
     this.feedPointsText.setText(
-      `Fed: ${this.score} / ${this.currentLevel.target}  |  Run points: ${this.roundPoints}  |  Bank: ${this.totalPoints}`,
+      `Fed: ${this.score} / ${this.currentLevel.target}  |  Run points: ${this.roundPoints}  |  Bank: ${this.pointsLabel()}`,
     );
     this.updateHungerUi();
   }
@@ -7894,12 +8230,12 @@ export class MainScene extends Phaser.Scene {
   }
 
   private updatePointsShopUi(): void {
-    this.shopPointsText.setText(`POINT BANK: ${this.totalPoints}`);
+    this.shopPointsText.setText(`POINT BANK: ${this.pointsLabel()}`);
 
     this.shopFishButtons.forEach((button, index) => {
       const style = FISH_STYLES[index];
       const owned = this.ownedFishStyles[index];
-      const affordable = this.totalPoints >= style.unlockPoints;
+      const affordable = this.hasInfinitePoints() || this.totalPoints >= style.unlockPoints;
       button.setStrokeStyle(owned ? 2 : affordable ? 3 : 2, owned ? 0x71806a : 0xc7e87d);
       button.setFillStyle(owned ? 0x263029 : affordable ? 0x28502e : 0x252b27, 0.96);
       this.shopFishPreviews[index].setAlpha(owned ? 0.55 : 1);
@@ -7911,7 +8247,7 @@ export class MainScene extends Phaser.Scene {
     this.shopBasketButtons.forEach((button, index) => {
       const style = BASKET_STYLES[index];
       const owned = this.ownedBasketStyles[index];
-      const affordable = this.totalPoints >= style.unlockPoints;
+      const affordable = this.hasInfinitePoints() || this.totalPoints >= style.unlockPoints;
       button.setStrokeStyle(owned ? 2 : affordable ? 3 : 2, owned ? 0x71806a : 0xc7e87d);
       button.setFillStyle(owned ? 0x263029 : affordable ? 0x28502e : 0x252b27, 0.96);
       this.shopBasketPreviews[index].setAlpha(owned ? 0.55 : 1);
@@ -7923,7 +8259,7 @@ export class MainScene extends Phaser.Scene {
     this.shopNetButtons.forEach((button, index) => {
       const style = NET_STYLES[index];
       const owned = this.ownedNetStyles[index];
-      const affordable = this.totalPoints >= style.unlockPoints;
+      const affordable = this.hasInfinitePoints() || this.totalPoints >= style.unlockPoints;
       button.setStrokeStyle(owned ? 2 : affordable ? 3 : 2, owned ? 0x71806a : 0xc7e87d);
       button.setFillStyle(owned ? 0x263029 : affordable ? 0x28502e : 0x252b27, 0.96);
       this.shopNetPreviews[index].setAlpha(owned ? 0.55 : 1);
@@ -7934,7 +8270,7 @@ export class MainScene extends Phaser.Scene {
     this.shipStyleButtons.forEach((button, index) => {
       const style = SHIP_STYLES[index];
       const owned = this.ownedShipStyles[index];
-      const affordable = this.totalPoints >= style.unlockPoints;
+      const affordable = this.hasInfinitePoints() || this.totalPoints >= style.unlockPoints;
       button.setStrokeStyle(owned ? 2 : affordable ? 3 : 2, owned ? 0x71806a : 0xc7e87d);
       button.setFillStyle(owned ? 0x263029 : affordable ? 0x28502e : 0x252b27, 0.96);
       this.shipStylePreviews[index].setAlpha(owned ? 0.55 : 1);
@@ -7956,7 +8292,7 @@ export class MainScene extends Phaser.Scene {
       this.shopMessageText.setText(`You already own ${style.name}. Equip it in Skins.`);
       return;
     }
-    if (!this.infiniteLoot && this.totalPoints < style.unlockPoints) {
+    if (!this.hasInfinitePoints() && this.totalPoints < style.unlockPoints) {
       this.shopMessageText.setText(
         `You need ${style.unlockPoints - this.totalPoints} more points for ${style.name}.`,
       );
@@ -7964,7 +8300,7 @@ export class MainScene extends Phaser.Scene {
       return;
     }
 
-    if (!this.infiniteLoot) this.totalPoints -= style.unlockPoints;
+    if (!this.hasInfinitePoints()) this.totalPoints -= style.unlockPoints;
     this.ownedFishStyles[index] = true;
     this.unlockAchievement('style-owner');
     this.shopMessageText.setText(`${style.name} purchased! Equip it in Skins.`);
@@ -7984,7 +8320,7 @@ export class MainScene extends Phaser.Scene {
       this.shopMessageText.setText(`You already own the ${style.name} basket. Equip it in Skins.`);
       return;
     }
-    if (!this.infiniteLoot && this.totalPoints < style.unlockPoints) {
+    if (!this.hasInfinitePoints() && this.totalPoints < style.unlockPoints) {
       this.shopMessageText.setText(
         `You need ${style.unlockPoints - this.totalPoints} more points for the ${style.name} basket.`,
       );
@@ -7992,7 +8328,7 @@ export class MainScene extends Phaser.Scene {
       return;
     }
 
-    if (!this.infiniteLoot) this.totalPoints -= style.unlockPoints;
+    if (!this.hasInfinitePoints()) this.totalPoints -= style.unlockPoints;
     this.ownedBasketStyles[index] = true;
     this.unlockAchievement('style-owner');
     this.shopMessageText.setText(`${style.name} basket purchased! Equip it in Skins.`);
@@ -8012,13 +8348,13 @@ export class MainScene extends Phaser.Scene {
       this.shopMessageText.setText(`You already own the ${style.name}. Equip it in Skins.`);
       return;
     }
-    if (!this.infiniteLoot && this.totalPoints < style.unlockPoints) {
+    if (!this.hasInfinitePoints() && this.totalPoints < style.unlockPoints) {
       this.shopMessageText.setText(`You need ${style.unlockPoints - this.totalPoints} more points for the ${style.name}.`);
       this.audio.playMiss();
       return;
     }
 
-    if (!this.infiniteLoot) this.totalPoints -= style.unlockPoints;
+    if (!this.hasInfinitePoints()) this.totalPoints -= style.unlockPoints;
     this.ownedNetStyles[index] = true;
     this.unlockAchievement('net-owner');
     this.hasNetUpgrade = true;
@@ -8042,12 +8378,12 @@ export class MainScene extends Phaser.Scene {
       this.shopMessageText.setText(`You already own the ${style.name}. Equip it in Skins.`);
       return;
     }
-    if (!this.infiniteLoot && this.totalPoints < style.unlockPoints) {
+    if (!this.hasInfinitePoints() && this.totalPoints < style.unlockPoints) {
       this.shopMessageText.setText(`You need ${style.unlockPoints - this.totalPoints} more points for the ${style.name}.`);
       this.audio.playMiss();
       return;
     }
-    if (!this.infiniteLoot) this.totalPoints -= style.unlockPoints;
+    if (!this.hasInfinitePoints()) this.totalPoints -= style.unlockPoints;
     this.ownedShipStyles[index] = true;
     this.hasShipMode = true;
     this.unlockAchievement('ship-owner');
@@ -8254,7 +8590,7 @@ export class MainScene extends Phaser.Scene {
   private updateMenuUi(): void {
     this.adminMenuButton?.setVisible(this.isAdmin);
     this.adminMenuText?.setVisible(this.isAdmin);
-    this.menuPointsText.setText(`TOTAL POINTS: ${this.totalPoints}`);
+    this.menuPointsText.setText(`TOTAL POINTS: ${this.pointsLabel()}`);
     this.menuLoadoutText.setText(
       `Fish: ${this.currentFishStyle.name}  |  Basket: ${this.currentBasketStyle.name}  |  Bear: ${this.currentBearStyle.name}`,
     );
@@ -8273,7 +8609,7 @@ export class MainScene extends Phaser.Scene {
   }
 
   private updateSettingsUi(): void {
-    this.settingsPointsText.setText(`TOTAL POINTS: ${this.totalPoints}`);
+    this.settingsPointsText.setText(`TOTAL POINTS: ${this.pointsLabel()}`);
     this.updateFishSelectionUi();
     this.updateBasketSelectionUi();
     this.updateNetSelectionUi();
@@ -8309,6 +8645,14 @@ export class MainScene extends Phaser.Scene {
     this.showFloatingPoints(x, y, amount);
   }
 
+  private hasInfinitePoints(): boolean {
+    return this.isAdmin && this.infiniteLoot;
+  }
+
+  private pointsLabel(): string {
+    return this.hasInfinitePoints() ? '∞' : String(this.totalPoints);
+  }
+
   private showFloatingPoints(x: number, y: number, amount: number): void {
     const label = this.add.text(x, y, `+${amount}`, {
       color: amount === NICKEL_POINTS ? '#e7eef6' : '#ffe38a',
@@ -8342,7 +8686,7 @@ export class MainScene extends Phaser.Scene {
   private updateHud(): void {
     this.levelText.setText(`${this.currentLevel.name}  -  ${this.currentLevel.difficulty}`);
     this.progressText.setText(`${this.score} / ${this.currentLevel.target} ${this.foodName} FED`);
-    this.scoreText.setText(`BANK ${this.totalPoints}  |  RUN ${this.roundPoints}`);
+    this.scoreText.setText(`BANK ${this.pointsLabel()}  |  RUN ${this.roundPoints}`);
     this.missesText.setText(
       this.usingNet
         ? 'MISSES  SAFE WITH NET'
@@ -8386,7 +8730,7 @@ export class MainScene extends Phaser.Scene {
     this.basket.setVisible(true);
     this.showEndScreen(
       'LEVEL CLEARED',
-      `${this.currentLevel.name}\n${bankedPoints} points banked\nTotal points: ${this.totalPoints}`,
+      `${this.currentLevel.name}\n${bankedPoints} points banked\nTotal points: ${this.pointsLabel()}`,
     );
   }
 
@@ -8403,7 +8747,7 @@ export class MainScene extends Phaser.Scene {
     this.basket.setVisible(true);
     this.showEndScreen(
       'GAME OVER',
-      `${penaltyApplied ? 'Baskets were lost; banked points are safe.' : 'Your baskets and points are safe here.'}\nTotal points: ${this.totalPoints}`,
+      `${penaltyApplied ? 'Baskets were lost; banked points are safe.' : 'Your baskets and points are safe here.'}\nTotal points: ${this.pointsLabel()}`,
     );
   }
 
@@ -8415,7 +8759,7 @@ export class MainScene extends Phaser.Scene {
   }
 
   private applyFailurePenalty(): boolean {
-    if (this.selectedLevelIsChallenge || this.selectedLevelIndex >= LEVELS.length - PENALTY_FREE_LEVEL_COUNT) {
+    if (this.isAdmin || this.selectedLevelIsChallenge || this.selectedLevelIndex >= LEVELS.length - PENALTY_FREE_LEVEL_COUNT) {
       this.roundPoints = 0;
       return false;
     }

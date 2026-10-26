@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#090d18" />
+    <meta name="description" content="Two worlds. One arcade. Play Fish Rain and UFO Blaster Freeze Tag in your browser." />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'" />
+    <title>The Arcade · Fish Rain &amp; Freeze Tag</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <div class="arcade">
+      <header>
+        <a class="brand" href="./" aria-label="Arcade home"><span class="brand-icon" aria-hidden="true">✦</span> THE ARCADE</a>
+        <span class="edition">BROWSER EDITION</span>
+      </header>
+      <main>
+        <div class="intro">
+          <p class="eyebrow">PICK YOUR NEXT ADVENTURE</p>
+          <h1>Small screen.<br /><span>Big adventures.</span></h1>
+          <p class="lead">Catch the next wave. Or catch the Alien.<br />Choose a game and jump straight in.</p>
+        </div>
+        <div class="games">
+          <a class="game fish" href="./fish-rain/" aria-label="Play Fish Rain">
+            <div class="art" aria-hidden="true">
+              <span class="number">01 / OCEAN ARCADE</span>
+              <svg viewBox="0 0 480 230" focusable="false">
+                <circle cx="382" cy="70" r="44" fill="#ffe1a4" />
+                <path d="M0 159 Q60 130 120 159 T240 159 T360 159 T480 159 V230 H0Z" fill="#147d9b" />
+                <path d="M0 191 Q60 162 120 191 T240 191 T360 191 T480 191 V230 H0Z" fill="#0b506c" />
+                <g class="fish-sprite" stroke="#081c34" stroke-width="5" stroke-linejoin="round">
+                  <path d="M169 103 115 65 V141Z" fill="#ffac66" />
+                  <ellipse cx="222" cy="103" rx="70" ry="46" fill="#ffc176" />
+                  <path d="m208 59 15 36-10 49" fill="none" stroke="#fff4cd" stroke-width="13" />
+                  <circle cx="260" cy="92" r="8" fill="#081c34" stroke="none" />
+                  <path d="M274 111q-9 10-19 0" fill="none" stroke-width="4" />
+                </g>
+                <g fill="none" stroke="#bdf5ff" stroke-width="3" opacity=".7"><circle cx="315" cy="106" r="6" /><circle cx="336" cy="74" r="9" /><circle cx="112" cy="151" r="5" /></g>
+              </svg>
+              <span class="art-label">A LITTLE RAIN. A LOT OF FISH.</span>
+            </div>
+            <div class="game-info">
+              <div class="tags"><span>ARCADE</span><span>SOLO</span></div>
+              <h2>Fish Rain</h2>
+              <p>Catch raining fish, feed a hungry bear, and conquer a sea of colorful harbors.</p>
+              <span class="play">Play Fish Rain <span aria-hidden="true">↗</span></span>
+            </div>
+          </a>
+          <a class="game alien" href="./freeze-tag/" aria-label="Play UFO Blaster Freeze Tag">
+            <div class="art" aria-hidden="true">
+              <span class="number">02 / COSMIC CHAOS</span>
+              <svg viewBox="0 0 480 230" focusable="false">
+                <g fill="#b5b2ff"><circle cx="75" cy="84" r="2" /><circle cx="404" cy="115" r="3" /><circle cx="343" cy="51" r="2" /><circle cx="146" cy="41" r="3" /><path d="m375 165 3 9 9 3-9 3-3 9-3-9-9-3 9-3Z" /></g>
+                <path d="m209 125-59 105h180l-59-105" fill="#9b7aff" opacity=".14" />
+                <g class="ufo-sprite" stroke="#11112b" stroke-width="5">
+                  <path d="M187 106a53 53 0 0 1 106 0" fill="#b4ffbb" />
+                  <path d="M218 81q17 0 16 17-17 0-16-17m44 0q-17 0-16 17 17 0 16-17" fill="#16243d" stroke="none" />
+                  <ellipse cx="240" cy="118" rx="113" ry="27" fill="#b5a1ff" />
+                  <ellipse cx="240" cy="130" rx="76" ry="15" fill="#7164d8" />
+                  <path d="M151 117h18m62 3h18m61-3h18" stroke="#d7ffaf" stroke-width="7" stroke-linecap="round" />
+                </g>
+                <path d="M0 216 110 197 174 217 310 195 400 218 480 204V230H0Z" fill="#191c3d" />
+              </svg>
+              <span class="art-label">TRUST YOUR FRIENDS. MAYBE.</span>
+            </div>
+            <div class="game-info">
+              <div class="tags"><span>FREEZE TAG</span><span>SOLO + BOTS</span></div>
+              <h2>UFO Blaster <span>Freeze Tag</span></h2>
+              <p>Outsmart the Alien, rescue frozen teammates, and make your next escape a stylish one.</p>
+              <span class="play">Play Freeze Tag <span aria-hidden="true">↗</span></span>
+            </div>
+          </a>
+        </div>
+        <aside class="notice" aria-label="About this edition"><strong>Your browser. Your progress.</strong> Saves stay on this device. Online sharing, gifts, live streams, and role activation require a separately hosted game server.</aside>
+      </main>
+      <footer><span>TWO WORLDS. ONE ARCADE.</span><span>No install. Just play.</span></footer>
+    </div>
+  </body>
+</html>

@@ -1,0 +1,10 @@
+export type ColorVisionMode = 'off' | 'all' | 'protanopia' | 'protanomaly' | 'deuteranopia' | 'deuteranomaly' | 'tritanopia' | 'tritanomaly' | 'achromatopsia' | 'achromatomaly';
+export type ColorVisionPalette = { primary: number; warning: number; frozen: number; outline: number; panel: number; text: number };
+export type ColorVisionPreset = { id: ColorVisionMode; name: string; detail: string; palette: ColorVisionPalette; filter: string };
+export const COLOR_VISION_PRESETS: ColorVisionPreset[];
+export function normalizeColorVision(value: unknown): ColorVisionMode;
+export function colorVisionPreset(value: unknown): ColorVisionPreset;
+export function colorHex(color: number): string;
+export function colorLuminance(color: number): number;
+export function colorVisionButton(mode: unknown, fill: string, text: string): { fill: string; text: string; border: number };
+export function actorStatusLabel(actor: { id: number; name: string; frozen: boolean; ejected: boolean }, showNames: boolean): string;

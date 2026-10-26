@@ -1,191 +1,139 @@
-# Fish Rain - Phaser 4 + TypeScript
+# The Arcade
 
-A browser game built with Phaser 4 and Vite. Catch raining fish in your basket, then feed them to a hungry bear before its hunger bar reaches zero. Choose from animated harbors, collect silver nickels, bank points, and buy new fish and baskets from the Points Shop.
+A learning project with two browser games built using Phaser 4, TypeScript, and Vite. Both games live in this repository and share a GitHub Pages home page.
 
-## Levels
+## Play online
 
-- Gentle Bay (Easy): feed 8 fish; up to 7 misses
-- Coral Crossing (Easy+): feed 10 fish; up to 7 misses
-- Sunset Shoals (Normal): feed 12 fish; up to 6 misses
-- Moonlit Marina (Normal+): feed 14 fish; up to 6 misses
-- Frostfin Fjord (Hard): feed 16 fish; up to 5 misses
-- Thunder Harbor (Hard+): feed 18 fish; up to 5 misses
-- Typhoon Trench (Extreme): feed 20 fish; up to 4 misses
-- Abyssal Monsoon (Extra Hard): feed 24 fish; up to 4 misses
-- Pirate's Passage (Master): feed 26 fish; up to 4 misses
-- Ember Reef (Master+): feed 28 fish; up to 4 misses
-- Aurora Inlet (Legendary): feed 30 fish; up to 3 misses
-- Cosmic Cascade (Impossible): feed 34 fish; up to 3 misses
-- Sunken Cathedral (Nightmare): feed 38 fish; up to 3 misses
-- Kelp Forest (Nightmare+): feed 42 fish; up to 3 misses
-- Crystal Atoll (Legendary+): feed 46 fish; up to 2 misses
-- Last Light Lagoon (Ascended): feed 50 fish; up to 2 misses
+**[Open the arcade and choose a game](https://curious-seahorse-duck.github.io/games/)**
 
-Each harbor has its own colors, animated rain, water, themed decoration, music, and a difficulty face that changes from friendly to angry. The menus, previews, fish, baskets, bear, messages, weather, and scene transitions are animated too. Press the large center Play button to open the Main Levels screen, then choose a harbor. Press `1`-`9` for a quick start.
+| Game | What you play | Direct link |
+| --- | --- | --- |
+| Fish Rain | Catch falling fish, feed a hungry bear, clear harbors, and unlock equipment. | [Play Fish Rain](https://curious-seahorse-duck.github.io/games/fish-rain/) |
+| UFO Blaster Freeze Tag | Play solo with bots, freeze or rescue players, and identify the Alien through meetings and votes. | [Play Freeze Tag](https://curious-seahorse-duck.github.io/games/freeze-tag/) |
 
-## Points and the shop
+No installation is needed to play online. These links use the `curious-seahorse-duck/games` repository's GitHub Pages address and become available after a successful Pages deployment.
 
-- Caught fish are stored in your basket and do not award points immediately.
-- Press `F` to feed one stored fish to the bear and add 1 unbanked run point.
-- A collectible silver nickel appears during each level and adds 5 unbanked run points.
-- Nickels do not count as misses if they fall past the basket.
-- Run points are only added to your permanent total after clearing the level.
-- Restarting, returning to the menu, or losing the level discards unbanked points.
-- Open the **Points Shop** from the level menu or press `P` to buy fish and baskets.
-- Buying an item subtracts its price from your bank. Purchased items normally stay owned permanently, except baskets removed by a failure penalty on the first eight levels.
-- Open **Skins** beside Play after buying an item to equip fish, baskets, nets, or ships. Settings contains display and audio options.
-- Total points, purchases, selected styles, hitbox visibility, and sound settings are saved in browser storage.
-- Mara sells multiple nets, plus a **Starter Sloop** ship mode for 250 points. Nets move 45% faster and make missed fish harmless, but the bear gets hungry 5x faster while a net is active. Ships move 85% faster and have a much larger catch zone.
-- If you run out of misses or the bear reaches 0% hunger, the first twelve levels can remove owned baskets, but banked points are always safe. Only unbanked run points are discarded. The final four levels are protected from the basket penalty.
-- Cleared levels are saved and shown with a green check mark in the level menu.
-- Mara, the shopkeeper, offers an expanded catalog of fish and baskets.
-- The Achievements screen tracks ten milestones and shows a pop-up the first time each one is completed.
-- Settings includes a **RESET DATA** button with a confirmation warning. Confirming removes this game's saved points, unlocks, levels, skins, and achievements.
+## Current state
 
-## Hungry bear
+This is a single-player learning project. Freeze Tag's other players, including friend-party stand-ins, are controlled by bots; the game does not provide real-time multiplayer.
 
-The bear has its own **Feed the Bear** tab beside Settings on the level menu. During a level, press `F` to pause and open this tab. Feeding a stored fish restores the hunger bar and adds run points.
+The GitHub Pages edition includes the browser gameplay, built-in cosmetics, shops, settings, and browser-local progression. Freeze Tag also includes story scenes, a map editor with local test matches, gameplay mods, mobile controls, and color-blind display options. Create a local account in Freeze Tag's **Account** screen before starting a match. Fish Rain also lets you play as a guest.
 
-The hunger bar drains by exactly 2% per second on every level, or 10% per second while a net is active. A full bar lasts 50 seconds without feeding normally. If it reaches zero, the game automatically opens the Feed the Bear tab and stays paused until you feed the bear or restart the level. Feeding from the menu remains in the menu and never opens a level-clear screen.
+Accounts, settings, and progress stay in the current browser and device. They do not sync across devices. Clearing browser storage removes local saves, and local development and the public site have separate saves.
 
-## Chat
+GitHub Pages only serves static files. It does not run the games' `/api` routes, so the following features need a separately hosted backend:
 
-Open **CHAT** from the main menu. The game creates a player ID and remembers it in browser storage. You can change it with **NEW ID**, copy it, paste a friend's ID into **FRIEND ID**, and send messages. Messages are limited to 240 characters and the latest 100 messages are kept locally.
+- Freeze Tag's shared account directory, friend requests, Verifier/Admin activation, public map and skin publishing, gift delivery, shared moderation, and UFOtube live streaming.
+- Fish Rain's shared profile and account-ban services. Its existing local features that communicate between tabs remain limited to the same browser and origin.
 
-The current game has no network backend, so chat uses the browser's `BroadcastChannel` API and works between open game tabs on the same origin. IDs alone cannot connect different devices over the internet. Cross-device chat requires adding a server relay and configuring it to authenticate IDs and route messages.
-
-## Accounts and profiles
-
-The game asks you to **CREATE ACCOUNT** or **SIGN IN** when it opens. You may continue as a guest for the main levels and Challenges; Stats still requires a signed-in account. Passwords are hashed before being stored in this browser. When the hosted server worker is used, admin bans are shared with every browser using that deployment; the current worker keeps the ban list in memory, so a durable database/KV store is needed for bans to survive a server restart.
-
-The **PROFILES** menu shows locally discovered accounts, including their stats, equipped fish/basket/net/bear/ship skins, following list, friends, and follower count. You can follow an account or send a friend request. This offline build discovers profiles only from the same browser/origin through local storage and open tabs; real multi-device accounts, friend requests, and following require a server backend.
-
-## Live mode
-
-Turn on **LIVE MODE** in Settings to add a **LIVE · WATCH** tab to the main menu. It advertises a small gameplay snapshot from this tab—player ID, current level, progress, hunger, basket position, and falling fish—to other open copies of the game using `BroadcastChannel`. The Live tab renders the most recent nearby player snapshot and lists active players.
-
-Live mode includes a chat panel in the top-right. The **MIC** control requests microphone permission and releases the microphone when turned off; the current offline build does not transmit audio to other devices. **TURN CHAT OFF** disables live chat input locally. Cross-device video, voice, and chat require a server relay/WebRTC service.
-
-## Fish styles
-
-Buy fish in the Points Shop, then choose an owned appearance from Skins:
-
-- Golden: available immediately
-- Clownfish: 10 points
-- Blue Tang: 25 points
-- Koi: 45 points
-- Neon Tetra: 70 points
-- Puffer: 100 points
-- Angelfish: 140 points
-- Galaxy Guppy: 190 points
-- Lionfish: 240 points
-- Moon Jelly: 300 points
-- Parrotfish: 370 points
-- Sunfish: 450 points
-- Dragonfish: 540 points
-- Prism Koi: 650 points
-- Reef Runner: 760 points
-- Violet Betta: 880 points
-- Golden Orb: 1020 points
-- Deep Drifter: 1180 points
-
-## Basket styles
-
-Buy baskets in the Points Shop, then choose an owned design from Skins:
-
-- Wicker: available immediately
-- Ocean: 15 points
-- Cherry: 30 points
-- Forest: 50 points
-- Royal: 75 points
-- Sunset: 105 points
-- Glacier: 145 points
-- Obsidian: 200 points
-- Pearl: 240 points
-- Tidal: 300 points
-- Sunspark: 370 points
-- Deep Sea: 450 points
-- Coral Crown: 540 points
-- Starweave: 650 points
-- Reef Runner: 760 points
-- Violet Wave: 880 points
-- Golden Reef: 1020 points
-- Deep Drifter: 1180 points
-
-Skins also equips purchased nets and ships. The top-right bear button in Settings opens the bear shop.
-
-## Controls
-
-- Arrow keys or `A` / `D`: move the basket
-- `F`: open the Feed the Bear tab during a level; feed one fish while inside it
-- `N`: switch to a purchased net
-- `T`: switch to a purchased ship
-- `H`: show or hide the fish and basket hitboxes
-- `R`: replay after winning or losing
-- `M`: return to the level menu
-- `S`: open Settings from the level menu
-- `P`: open the Points Shop from the level menu
-- Toggle **Phonk Mode** in Settings to remix every soundtrack while music is enabled
-- Toggle **Low Detail** in Settings to cap the game at 24 FPS and reduce rain.
-- Toggle **3D Mode** in Settings to apply a perspective presentation to the whole game.
-
-Settings also includes **MOBILE CONTROLS**. Turn it on to show large touch buttons during a level: left/right movement, Feed Bear, Net, and Ship. The touch overlay hides outside active gameplay, so menus and text inputs remain usable.
-
-## Audio
-
-Fish catches, misses, bear feeding, and nickel pickups have their own sound effects. The main menu has its own looping music, and each level has a generated music pattern matched to its name and mood, from gentle bay melodies to pirate, storm, volcano, aurora, and cosmic themes. Audio is synthesized in the browser, so there are no sound assets to download or configure.
-
-Settings includes **Phonk Mode**. Turn it on while Sound & Music is enabled to convert the menu and every level soundtrack into a darker, bass-heavy phonk arrangement.
-
-## Requirements
-
-- Node.js 18+ (the current LTS release is recommended)
-- npm (included with Node.js)
+The local development servers provide API implementations for development; their shared service state is kept in memory and resets when the server restarts. Running these servers does not add multiplayer gameplay or cross-device save synchronization.
 
 ## Run locally
 
-From this directory:
+Install **Node.js 22 or newer** and npm. Clone the repository, then enter its root directory:
 
-```bash
-npm install
-npm run dev
+```sh
+git clone https://github.com/curious-seahorse-duck/games.git
+cd games
 ```
 
-Open the local URL printed by Vite, usually `http://localhost:5173`.
+If you already have the repository, open a terminal in the folder containing `package.json`, `fish-rain/`, `freeze-tag/`, and `.github/`.
 
-The Vite development and preview servers send a restrictive Content Security Policy and
-additional browser security headers. If you deploy `dist/` to another host, configure
-that host to send the same headers; static files do not carry response headers with them.
+Install each game's dependencies using its lockfile:
 
-## Security boundary
+```sh
+npm ci --prefix fish-rain
+npm ci --prefix freeze-tag
+```
 
-Scores, unlocks, and achievements are saved in the player's browser, so anyone who
-controls the browser can still edit the save or modify the shipped JavaScript. The
-hosted server worker provides shared account-ban checks, but its in-memory ban list is
-not a replacement for durable account storage or server-authoritative authentication.
-For competitive scores and permanent moderation, use a database/KV-backed backend and
-calculate/store validated events server-side.
+There are no root package dependencies to install. On Windows PowerShell, use `npm.cmd` instead of `npm` if script execution policy blocks `npm.ps1`.
 
-Vite watches the `src` directory, so edits appear in the browser automatically.
+### Fish Rain
 
-## Verify a production build
+From the repository root:
 
-```bash
+```sh
+npm --prefix fish-rain run dev
+```
+
+Open **[http://localhost:5173/fish-rain/](http://localhost:5173/fish-rain/)**. Choose Play, then select a harbor. Use the arrow keys or `A` / `D` to move and `F` to open Feed the Bear. Mobile controls are available in Settings.
+
+### UFO Blaster Freeze Tag
+
+From the repository root, in a separate terminal if Fish Rain is already running:
+
+```sh
+npm --prefix freeze-tag run dev
+```
+
+Open **[http://localhost:5174/freeze-tag/](http://localhost:5174/freeze-tag/)**. Create or sign in to a local account, select Play, and configure a match. Use `WASD` or the arrow keys to move and `Space` for the context action. Enable **Settings → Mobile Mode** for touch controls.
+
+Use the URL printed by Vite if the default port is occupied. Keep each server's terminal open while playing; press `Ctrl+C` to stop it. See the [Fish Rain guide](fish-rain/README.md) and [Freeze Tag guide](freeze-tag/README.md) for the full controls and game features.
+
+## Build and preview the arcade
+
+After installing both games' dependencies, run this from the repository root:
+
+```sh
 npm run build
-npm run preview
 ```
 
-The production files are written to `dist/`. `npm run preview` serves that build locally.
-
-## Project structure
+This type-checks both games, runs their static `build:pages` builds, and assembles the shared home page and both games into `_site/`:
 
 ```text
-index.html              HTML shell
-src/main.ts             Phaser bootstrap and game configuration
-src/game/scenes/        Phaser scenes
-src/game/audio/         Generated music and sound effects
-src/style.css           Page and canvas layout
-vite.config.ts          Vite configuration (uses defaults)
+_site/
+  .nojekyll
+  index.html
+  style.css
+  fish-rain/
+    index.html
+    assets/
+  freeze-tag/
+    index.html
+    assets/
 ```
 
-The game draws its visuals at runtime, so there are no asset downloads or asset paths to configure.
+Serve `_site/` over HTTP rather than opening its HTML files directly. For example, if Python 3 is installed:
+
+```sh
+python -m http.server 8080 --directory _site
+```
+
+Open **[http://localhost:8080/](http://localhost:8080/)** to preview the arcade home page and both games. This static preview has the same backend limitations as GitHub Pages.
+
+Each game's separate `npm run build` script also generates a server-worker package for other hosting options. The root Pages build publishes only the home page, game HTML, and built JavaScript/CSS assets; it excludes server workers, `.openai` configuration, and source files. That exclusion applies to the deployed website, not to files in a public GitHub repository.
+
+## Run checks
+
+From the repository root:
+
+```sh
+npm test --prefix freeze-tag
+npm run test:pages
+```
+
+Freeze Tag's tests exercise game behavior and API flows with browser stubs. The Pages tests check packaging, relative links, and exclusion of server files. These checks do not replace testing the games in a real browser. Fish Rain currently has no dedicated test script; its TypeScript is checked during the build.
+
+## Automatic GitHub Pages deployment
+
+The workflow in [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) installs both games' dependencies, runs the checks, builds the arcade, and uploads `_site/`.
+
+- Every push builds and tests both games.
+- Pull requests targeting `main` also build and test.
+- A successful build on `main` deploys to GitHub Pages automatically.
+- Builds on other branches do not replace the live website.
+
+To enable publishing, select **Settings → Pages → Build and deployment → Source → GitHub Actions** in the repository, then push to `main`. You can also run **Actions → Build games and deploy GitHub Pages → Run workflow** with `main` selected. The deployment job and **Settings → Pages** show the published URL. If a build or test fails, the previous deployment stays live. No personal access token or committed build output is needed.
+
+The builds use relative asset URLs, so the games work under the `/games/` repository path. If the repository or domain changes, update the play links in this README. See [GitHub's custom workflow guide](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages) for Pages setup details.
+
+## Repository layout
+
+```text
+site/                       Shared arcade home page
+fish-rain/                  Fish Rain app, source, and game guide
+freeze-tag/                 Freeze Tag app, source, API, and game guide
+scripts/assemble-pages.mjs   Packages both games for GitHub Pages
+scripts/pages.test.mjs       Pages packaging tests
+.github/workflows/           Build, test, and deployment workflow
+```
